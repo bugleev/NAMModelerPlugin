@@ -1,18 +1,18 @@
-#define PLUG_NAME "NAMampPlugin"
-#define PLUG_MFR "bugleev"
-#define PLUG_VERSION_HEX 0x00000a00
-#define PLUG_VERSION_STR "0.10.0"
+#define PLUG_NAME "Gateway Modded"
+#define PLUG_MFR "NAMenjoyer"
+#define PLUG_VERSION_HEX 0x00000a01
+#define PLUG_VERSION_STR "0.10.1"
 #define PLUG_UNIQUE_ID 'NAmp'
-#define PLUG_MFR_ID 'bugl'
+#define PLUG_MFR_ID 'NAMj'
 #define PLUG_URL_STR "https://github.com/bugleev/NAMModelerPlugin"
 #define PLUG_EMAIL_STR "spam@me.com"
-#define PLUG_COPYRIGHT_STR "Copyright 2026 bugleev"
+#define PLUG_COPYRIGHT_STR "Copyright 2026 NAMenjoyer"
 #define PLUG_CLASS_NAME NeuralAmpModeler
-#define BUNDLE_NAME "NAMampPlugin"
-#define BUNDLE_MFR "bugleev"
+#define BUNDLE_NAME "GatewayModded"
+#define BUNDLE_MFR "NAMenjoyer"
 #define BUNDLE_DOMAIN "com"
 
-#define SHARED_RESOURCES_SUBPATH "NAMampPlugin"
+#define SHARED_RESOURCES_SUBPATH "GatewayModded"
 
 #ifdef APP_API
   #define PLUG_CHANNEL_IO "1-2"
@@ -43,8 +43,8 @@
 
 #define AAX_TYPE_IDS 'ITP1'
 #define AAX_TYPE_IDS_AUDIOSUITE 'ITA1'
-#define AAX_PLUG_MFR_STR "bugleev"
-#define AAX_PLUG_NAME_STR "NAMampPlugin\nNAMP"
+#define AAX_PLUG_MFR_STR "NAMenjoyer"
+#define AAX_PLUG_NAME_STR "Gateway Modded\nGTWY"
 #define AAX_PLUG_CATEGORY_STR "Effect"
 #define AAX_DOES_AUDIOSUITE 1
 

@@ -356,6 +356,41 @@ public:
     LoadFileAtCurrentIndex(NAMFileLoadSource::ExistingBrowserSelection);
   }
 
+  // Opens the same file/directory picker as the folder button.
+  void PromptToBrowse()
+  {
+    if (!GetUI())
+      return;
+
+    WDL_String fileName;
+    WDL_String path;
+    GetSelectedFileDirectory(path);
+#ifdef NAM_PICK_DIRECTORY
+    GetUI()->PromptForDirectory(path, [&](const WDL_String& /*fileName*/, const WDL_String& path) {
+      if (path.GetLength())
+      {
+        ClearPathList();
+        AddPath(path.Get(), "");
+        SetupMenu();
+        SelectFirstFile();
+        LoadFileAtCurrentIndex(NAMFileLoadSource::ExistingBrowserSelection);
+      }
+    });
+#else
+    GetUI()->PromptForFile(
+      fileName, path, EFileAction::Open, mExtension.Get(), [&](const WDL_String& fileName, const WDL_String& path) {
+        if (fileName.GetLength())
+        {
+          ClearPathList();
+          AddPath(path.Get(), "");
+          SetupMenu();
+          SetSelectedFile(fileName.Get());
+          LoadFileAtCurrentIndex(NAMFileLoadSource::FilePickerSelection, &fileName, &path);
+        }
+      });
+#endif
+  }
+
   void Draw(IGraphics& g) override { g.DrawFittedBitmap(mBitmap, mRECT); }
 
   void OnPopupMenuSelection(IPopupMenu* pSelectedMenu, int valIdx) override
@@ -1029,10 +1064,10 @@ private:
 
       buildInfoStr.SetFormatted(100, "Version %s %s %s", verStr.Get(), PLUG()->GetArchStr(), PLUG()->GetAPIStr());
 
-      AddChildControl(new IURLControl(GetRECT().SubRectVertical(5, 0), "NAMAMP PLUGIN",
+      AddChildControl(new IURLControl(GetRECT().SubRectVertical(5, 0), "GATEWAY MODDED",
                                       "https://github.com/bugleev/NAMModelerPlugin", mText, COLOR_TRANSPARENT,
                                       PluginColors::HELP_TEXT_MO, PluginColors::HELP_TEXT_CLICKED));
-      AddChildControl(new IVLabelControl(GetRECT().SubRectVertical(5, 1), "By bugleev", mStyle));
+      AddChildControl(new IVLabelControl(GetRECT().SubRectVertical(5, 1), "By NAMenjoyer", mStyle));
       AddChildControl(new IVLabelControl(GetRECT().SubRectVertical(5, 2), buildInfoStr.Get(), mStyle));
       AddChildControl(new IURLControl(GetRECT().SubRectVertical(5, 3),
                                       "Based on Neural Amp Modeler by Steven Atkinson et al.",

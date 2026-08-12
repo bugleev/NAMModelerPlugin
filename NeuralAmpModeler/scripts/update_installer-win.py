@@ -38,7 +38,7 @@ def main():
 
     config = parse_config(projectpath)
     bundle_name = config["BUNDLE_NAME"]
-    display_name = env_or_default("INSTALLER_DISPLAY_NAME", bundle_name)
+    display_name = env_or_default("INSTALLER_DISPLAY_NAME", config["PLUG_NAME"])
     installer_suffix = " Demo" if demo else ""
     default_output_name = display_name + installer_suffix + " Installer"
 
@@ -50,10 +50,10 @@ def main():
         ),
         "AppCopyright": env_or_default(
             "INSTALLER_APP_COPYRIGHT",
-            "Copyright (C) 2026 bugleev",
+            "Copyright (C) 2026 NAMenjoyer",
         ),
         "AppPublisher": env_or_default(
-            "INSTALLER_APP_PUBLISHER", "bugleev"
+            "INSTALLER_APP_PUBLISHER", "NAMenjoyer"
         ),
         "AppPublisherURL": env_or_default(
             "INSTALLER_APP_PUBLISHER_URL",
@@ -65,8 +65,8 @@ def main():
         ),
         "AppVersion": config["FULL_VER_STR"],
         "VersionInfoVersion": config["FULL_VER_STR"],
-        "DefaultDirName": "{pf}\\" + display_name,
-        "DefaultGroupName": display_name,
+        "DefaultDirName": "{pf}\\" + config["PLUG_MFR"] + "\\" + display_name,
+        "DefaultGroupName": config["PLUG_MFR"] + "\\" + display_name,
         "OutputBaseFilename": env_or_default(
             "INSTALLER_OUTPUT_BASE_FILENAME", default_output_name
         ),
@@ -83,9 +83,12 @@ def main():
     # WIN INSTALLER
     print("Updating Windows Installer version info...")
 
-    for line in fileinput.input(
-        projectpath + "/installer/" + bundle_name + ".iss", inplace=1
-    ):
+    # Project folder is still NeuralAmpModeler; the .iss keeps that legacy filename.
+    iss_path = projectpath + "/installer/NeuralAmpModeler.iss"
+    if not os.path.exists(iss_path):
+        iss_path = projectpath + "/installer/" + bundle_name + ".iss"
+
+    for line in fileinput.input(iss_path, inplace=1):
         if "=" in line:
             key = line.split("=", 1)[0]
             if key in setup_values:

@@ -7,7 +7,7 @@
 	<key>CFBundleExecutable</key>
 	<string>NeuralAmpModeler</string>
 	<key>CFBundleGetInfoString</key>
-	<string>NAMampPlugin v0.10.0 Copyright 2026 bugleev</string>
+	<string>Gateway Modded v0.10.1 Copyright 2026 NAMenjoyer</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.StevenAtkinson.app.NeuralAmpModeler.AUv3</string>
 	<key>CFBundleInfoDictionaryVersion</key>

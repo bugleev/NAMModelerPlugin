@@ -80,7 +80,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: NeuralAmpModeler-Installer
-          path: ${{ env.PROJECT_NAME }}/build-win/installer/NAMampPlugin Installer.exe
+          path: ${{ env.PROJECT_NAME }}/build-win/installer/Gateway Modded Installer.exe
           if-no-files-found: error
 
       - name: Upload packaged zip (installer + docs)
@@ -93,8 +93,8 @@ jobs:
       - name: Upload standalone EXE (no VST3 install)
         uses: actions/upload-artifact@v4
         with:
-          name: NAMampPlugin_x64-standalone-only
-          path: ${{ env.PROJECT_NAME }}/build-win/NAMampPlugin_x64.exe
+          name: GatewayModded_x64-standalone-only
+          path: ${{ env.PROJECT_NAME }}/build-win/GatewayModded_x64.exe
           if-no-files-found: warn
 
       - name: Upload PDBs

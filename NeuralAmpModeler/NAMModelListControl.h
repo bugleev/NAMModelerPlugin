@@ -20,17 +20,21 @@ class NAMModelListPanel : public IContainerBase
 {
 public:
   using LoadFunc = std::function<void(const std::string& path)>;
+  using BrowseFunc = std::function<void()>;
 
-  NAMModelListPanel(const IRECT& bounds, const IVStyle& style, const ISVG& starOutlineSVG, const ISVG& starFilledSVG)
+  NAMModelListPanel(const IRECT& bounds, const IVStyle& style, const ISVG& starOutlineSVG, const ISVG& starFilledSVG,
+                    const ISVG& folderSVG)
   : IContainerBase(bounds)
   , mStyle(style)
   , mStarOutlineSVG(starOutlineSVG)
   , mStarFilledSVG(starFilledSVG)
+  , mFolderSVG(folderSVG)
   {
     mIgnoreMouse = false;
   }
 
   void SetLoadFunc(LoadFunc onLoad) { mOnLoad = std::move(onLoad); }
+  void SetBrowseFunc(BrowseFunc onBrowse) { mOnBrowse = std::move(onBrowse); }
 
   void SetDirectoryFiles(const std::vector<std::string>& directoryFiles, const std::string& selectedPath)
   {
@@ -39,6 +43,7 @@ public:
     mFavorites.Load();
     RebuildVisibleList();
     UpdateHeaderLabels();
+    UpdateEmptyStateControls();
     SetDirty(true);
   }
 
@@ -57,11 +62,12 @@ public:
     mHeaderBounds = inner.GetFromTop(headerH);
     mToolBounds = inner.GetFromTop(headerH + 4.f + toolH).GetFromBottom(toolH);
     mListBounds = inner.GetReducedFromTop(headerH + toolH + 10.f);
+    mEmptyIconBounds = mListBounds.GetCentredInside(56.f, 56.f).GetVShifted(-12.f);
 
     const auto favBounds = mToolBounds.GetFromRight(92.f);
     const auto searchBounds = mToolBounds.GetReducedFromRight(100.f);
 
-    const IText searchText(13.f, COLOR_WHITE, "Roboto-Regular", EAlign::Near, EVAlign::Middle);
+    const IText searchText(14.f, PluginColors::OFF_WHITE, "Roboto-Regular", EAlign::Near, EVAlign::Middle);
     mSearchControl = new SearchFieldControl(searchBounds, searchText, [this](const std::string& q) {
       mSearchQuery = q;
       mScrollOffset = 0.f;
@@ -73,7 +79,7 @@ public:
 
     mFavToggle = new IVButtonControl(
       favBounds, DefaultClickActionFunc, "Favorites",
-      mStyle.WithDrawFrame(true).WithValueText(IText(12.f, COLOR_WHITE, "Roboto-Regular")));
+      mStyle.WithDrawFrame(true).WithValueText(IText(13.f, PluginColors::OFF_WHITE, "Roboto-Regular")));
     mFavToggle->SetAnimationEndActionFunction([this](IControl* /*pCaller*/) {
       mFavoritesOnly = !mFavoritesOnly;
       mScrollOffset = 0.f;
@@ -86,19 +92,19 @@ public:
     mTitleLabel =
       new IVLabelControl(mHeaderBounds.GetFromLeft(140.f), "MODEL LIST",
                          mStyle.WithDrawFrame(false).WithValueText(
-                           IText(14.f, PluginColors::NAM_THEMEFONTCOLOR, "Roboto-Regular", EAlign::Near)));
+                           IText(15.f, PluginColors::OFF_WHITE, "Roboto-Regular", EAlign::Near)));
     AddChildControl(mTitleLabel);
 
     mCountLabel =
       new IVLabelControl(mHeaderBounds.GetReducedFromLeft(150.f), "0 models",
                          mStyle.WithDrawFrame(false).WithValueText(
-                           IText(12.f, PluginColors::NAM_THEMEFONTCOLOR.WithOpacity(0.75f), "Roboto-Regular",
-                                 EAlign::Near)));
+                           IText(13.f, PluginColors::NAM_THEMECOLOR, "Roboto-Regular", EAlign::Near)));
     AddChildControl(mCountLabel);
 
     mFavorites.Load();
     RebuildVisibleList();
     UpdateHeaderLabels();
+    UpdateEmptyStateControls();
     OnResize();
   }
 
@@ -107,10 +113,19 @@ public:
     g.FillRoundRect(IColor(255, 22, 22, 26), mRECT, 6.f);
     g.DrawRoundRect(PluginColors::NAM_THEMECOLOR.WithOpacity(0.45f), mRECT, 6.f, nullptr, 1.f);
 
+    if (IsEmptyDirectory())
+    {
+      DrawEmptyState(g);
+      return;
+    }
+
     g.PathClipRegion(mListBounds);
     const int first = static_cast<int>(mScrollOffset / kRowHeight);
     const int visibleCount = static_cast<int>(std::ceil(mListBounds.H() / kRowHeight)) + 1;
     const int last = std::min(static_cast<int>(mVisible.size()), first + visibleCount);
+
+    const IText rowText(15.f, PluginColors::OFF_WHITE, "Roboto-Regular", EAlign::Near, EVAlign::Middle);
+    const IText selectedText(15.f, COLOR_WHITE, "Roboto-Regular", EAlign::Near, EVAlign::Middle);
 
     for (int i = first; i < last; ++i)
     {
@@ -120,16 +135,15 @@ public:
       const bool hovered = (i == mHoverRow);
 
       if (selected)
-        g.FillRect(PluginColors::NAM_THEMECOLOR.WithOpacity(0.35f), row);
+        g.FillRect(PluginColors::NAM_THEMECOLOR.WithOpacity(0.45f), row);
       else if (hovered)
-        g.FillRect(PluginColors::MOUSEOVER, row);
+        g.FillRect(PluginColors::NAM_THEMECOLOR.WithOpacity(0.18f), row);
 
-      g.DrawLine(IColor(255, 40, 40, 44), row.L, row.B, row.R, row.B);
+      g.DrawLine(IColor(255, 48, 48, 54), row.L, row.B, row.R, row.B);
 
       const IRECT starBounds = row.GetFromRight(kStarColW).GetCentredInside(16.f, 16.f);
-      const IRECT nameBounds = row.GetPadded(-8.f, 0.f, -kStarColW, 0.f);
-      g.DrawText(IText(13.f, COLOR_WHITE, "Roboto-Regular", EAlign::Near, EVAlign::Middle),
-                 FileNameFromPath(path).c_str(), nameBounds);
+      const IRECT nameBounds = row.GetPadded(-10.f, 0.f, -kStarColW, 0.f);
+      g.DrawText(selected ? selectedText : rowText, FileNameFromPath(path).c_str(), nameBounds);
 
       const bool fav = mFavorites.IsFavorite(path);
       g.DrawSVG(fav ? mStarFilledSVG : mStarOutlineSVG, starBounds);
@@ -144,12 +158,25 @@ public:
       const float t = maxScroll > 0.f ? (mScrollOffset / maxScroll) : 0.f;
       const float thumbY = mListBounds.T + t * (mListBounds.H() - thumbH);
       const IRECT thumb(mListBounds.R - 3.f, thumbY, mListBounds.R - 1.f, thumbY + thumbH);
-      g.FillRoundRect(PluginColors::NAM_THEMECOLOR.WithOpacity(0.7f), thumb, 1.f);
+      g.FillRoundRect(PluginColors::NAM_THEMECOLOR.WithOpacity(0.85f), thumb, 1.f);
     }
   }
 
   void OnMouseOver(float x, float y, const IMouseMod& mod) override
   {
+    if (IsEmptyDirectory())
+    {
+      const bool over = mEmptyIconBounds.Contains(x, y) || mListBounds.Contains(x, y);
+      if (over != mEmptyHover)
+      {
+        mEmptyHover = over;
+        SetDirty(false);
+      }
+      GetUI()->SetMouseCursor(over ? ECursor::HAND : ECursor::ARROW);
+      IContainerBase::OnMouseOver(x, y, mod);
+      return;
+    }
+
     const int row = HitTestRow(x, y);
     if (row != mHoverRow)
     {
@@ -161,17 +188,20 @@ public:
 
   void OnMouseOut() override
   {
-    if (mHoverRow != -1)
+    if (mHoverRow != -1 || mEmptyHover)
     {
       mHoverRow = -1;
+      mEmptyHover = false;
       SetDirty(false);
     }
+    if (GetUI())
+      GetUI()->SetMouseCursor(ECursor::ARROW);
     IContainerBase::OnMouseOut();
   }
 
   void OnMouseWheel(float x, float y, const IMouseMod& /*mod*/, float d) override
   {
-    if (!mRECT.Contains(x, y))
+    if (IsEmptyDirectory() || !mRECT.Contains(x, y))
       return;
     mScrollOffset -= d * kRowHeight * 1.5f;
     ClampScroll();
@@ -181,6 +211,13 @@ public:
 
   void OnMouseDown(float x, float y, const IMouseMod& mod) override
   {
+    if (IsEmptyDirectory())
+    {
+      if (mListBounds.Contains(x, y) && mOnBrowse)
+        mOnBrowse();
+      return;
+    }
+
     if (!mListBounds.Contains(x, y))
     {
       IContainerBase::OnMouseDown(x, y, mod);
@@ -210,7 +247,7 @@ public:
   }
 
 private:
-  static constexpr float kRowHeight = 28.f;
+  static constexpr float kRowHeight = 30.f;
   static constexpr float kStarColW = 34.f;
 
   class SearchFieldControl : public IEditableTextControl
@@ -246,7 +283,7 @@ private:
     void Draw(IGraphics& g) override
     {
       g.FillRoundRect(IColor(255, 18, 18, 22), mRECT, 3.f);
-      g.DrawRoundRect(PluginColors::NAM_THEMECOLOR.WithOpacity(0.35f), mRECT, 3.f, nullptr, 1.f);
+      g.DrawRoundRect(PluginColors::NAM_THEMECOLOR.WithOpacity(0.45f), mRECT, 3.f, nullptr, 1.f);
       ITextControl::Draw(g);
     }
 
@@ -254,6 +291,30 @@ private:
     ChangeFunc mOnChange;
     bool mPlaceholder;
   };
+
+  bool IsEmptyDirectory() const { return mDirectoryFiles.empty(); }
+
+  void DrawEmptyState(IGraphics& g)
+  {
+    if (mEmptyHover)
+      g.FillRoundRect(PluginColors::NAM_THEMECOLOR.WithOpacity(0.12f), mListBounds, 4.f);
+
+    g.DrawSVG(mFolderSVG, mEmptyIconBounds);
+    const IRECT hintBounds = mListBounds.GetFromBottom(mListBounds.H() * 0.45f).GetMidVPadded(18.f);
+    g.DrawText(IText(15.f, PluginColors::OFF_WHITE, "Roboto-Regular", EAlign::Center, EVAlign::Middle),
+               "Click to select a model folder", hintBounds);
+  }
+
+  void UpdateEmptyStateControls()
+  {
+    const bool empty = IsEmptyDirectory();
+    if (mSearchControl)
+      mSearchControl->Hide(empty);
+    if (mFavToggle)
+      mFavToggle->Hide(empty);
+    if (mCountLabel)
+      mCountLabel->Hide(empty);
+  }
 
   static std::string FileNameFromPath(const std::string& path)
   {
@@ -302,24 +363,13 @@ private:
       return ToLower(FileNameFromPath(path)).find(query) != std::string::npos;
     };
 
-    if (mFavoritesOnly)
+    // Favorites filter only includes starred files from the current directory.
+    for (const auto& path : mDirectoryFiles)
     {
-      for (const auto& fav : mFavorites.GetAll())
-      {
-        std::error_code ec;
-        if (!std::filesystem::exists(fav, ec))
-          continue;
-        if (matchesSearch(fav))
-          mVisible.push_back(fav);
-      }
-    }
-    else
-    {
-      for (const auto& path : mDirectoryFiles)
-      {
-        if (matchesSearch(path))
-          mVisible.push_back(path);
-      }
+      if (mFavoritesOnly && !mFavorites.IsFavorite(path))
+        continue;
+      if (matchesSearch(path))
+        mVisible.push_back(path);
     }
     ClampScroll();
   }
@@ -340,6 +390,7 @@ private:
   IVStyle mStyle;
   ISVG mStarOutlineSVG;
   ISVG mStarFilledSVG;
+  ISVG mFolderSVG;
   NAMFavoritesStore mFavorites;
   std::vector<std::string> mDirectoryFiles;
   std::vector<std::string> mVisible;
@@ -348,11 +399,14 @@ private:
   bool mFavoritesOnly = false;
   float mScrollOffset = 0.f;
   int mHoverRow = -1;
+  bool mEmptyHover = false;
   LoadFunc mOnLoad;
+  BrowseFunc mOnBrowse;
 
   IRECT mHeaderBounds;
   IRECT mToolBounds;
   IRECT mListBounds;
+  IRECT mEmptyIconBounds;
   SearchFieldControl* mSearchControl = nullptr;
   IVButtonControl* mFavToggle = nullptr;
   IVLabelControl* mTitleLabel = nullptr;

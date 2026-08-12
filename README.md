@@ -1,15 +1,17 @@
-# NAMampPlugin
+# Gateway Modded
 
 Fork of [sdatkinson/NeuralAmpModelerPlugin](https://github.com/sdatkinson/NeuralAmpModelerPlugin) — a VST3 / standalone app for loading [Neural Amp Modeler](https://github.com/sdatkinson/neural-amp-modeler) `.nam` models, built with [iPlug2](https://iplug2.github.io).
 
-**Publisher:** bugleev  
-**Current version: 0.10.0**
+**Publisher:** NAMenjoyer  
+**Current version: 0.10.1**
 
-## What's new in 0.10.0
+## What's new in 0.10.1
 
-- Persistent **MODEL LIST** panel always visible at the bottom of the UI (search + favorites)
-- Rebranded to **NAMampPlugin** / **bugleev** (installer and VST3 bundle no longer use Steven Atkinson / NeuralAmpModeler names)
-- Installs VST3 as `C:\Program Files\Common Files\VST3\NAMampPlugin.vst3`
+- Renamed to **Gateway Modded** / **NAMenjoyer**
+- Favorites filter scoped to the current folder
+- Empty-state folder browse in the model list
+- Clearer model list text
+- Installs VST3 as `C:\Program Files\Common Files\VST3\GatewayModded.vst3`
 
 ## Building on Windows
 
@@ -23,7 +25,7 @@ git submodule update --init --recursive
 
 1. Push changes to GitHub
 2. Open **Actions** → **Build Windows** → **Run workflow**
-3. Download **NAMampPlugin Installer** and run it on Windows to install the VST3 + standalone app
+3. Download **Gateway Modded Installer** and run it on Windows to install the VST3 + standalone app
 
 ```bash
 gh workflow run "Build Windows"
@@ -35,7 +37,7 @@ gh run download --name NeuralAmpModeler-Installer
 1. Open `NeuralAmpModeler\NeuralAmpModeler.sln`
 2. **Release | x64**
 3. Build **NeuralAmpModeler-app** and/or **NeuralAmpModeler-vst3**
-4. Outputs under `NeuralAmpModeler\build-win\` as `NAMampPlugin_x64.exe` and `NAMampPlugin.vst3`
+4. Outputs under `NeuralAmpModeler\build-win\` as `GatewayModded_x64.exe` and `GatewayModded.vst3`
 
 Or:
 

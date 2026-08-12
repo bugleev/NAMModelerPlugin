@@ -330,7 +330,7 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
       ->SetIgnoreMouse(true);
     const auto listArea = b.GetReducedFromTop(408.f).GetPadded(-12.f);
     auto* modelListPanel =
-      pGraphics->AttachControl(new NAMModelListPanel(listArea, style, starOutlineSVG, starFilledSVG),
+      pGraphics->AttachControl(new NAMModelListPanel(listArea, style, starOutlineSVG, starFilledSVG, fileSVG),
                                kCtrlTagModelListPanel)
         ->As<NAMModelListPanel>();
     modelListPanel->SetLoadFunc([pGraphics, refreshModelList](const std::string& path) {
@@ -339,6 +339,10 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
         browser->LoadAbsoluteFile(path.c_str());
         refreshModelList();
       }
+    });
+    modelListPanel->SetBrowseFunc([pGraphics]() {
+      if (auto* browser = pGraphics->GetControlWithTag(kCtrlTagModelFileBrowser)->As<NAMFileBrowserControl>())
+        browser->PromptToBrowse();
     });
     refreshModelList();
 

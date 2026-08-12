@@ -28,10 +28,10 @@ def main():
     files = []
 
     if not zip:
-        installer = "\\build-win\\installer\\NAMampPlugin Installer.exe"
+        installer = "\\build-win\\installer\\Gateway Modded Installer.exe"
 
         if demo:
-            installer = "\\build-win\\installer\\NAMampPlugin Demo Installer.exe"
+            installer = "\\build-win\\installer\\Gateway Modded Demo Installer.exe"
 
         files = [
             projectpath + installer,
@@ -42,8 +42,8 @@ def main():
     else:
         files = [
             projectpath
-            + "\\build-win\\NAMampPlugin.vst3\\Contents\\x86_64-win\\NAMampPlugin.vst3",
-            projectpath + "\\build-win\\NAMampPlugin_x64.exe",
+            + "\\build-win\\GatewayModded.vst3\\Contents\\x86_64-win\\GatewayModded.vst3",
+            projectpath + "\\build-win\\GatewayModded_x64.exe",
         ]
 
     zipname = get_archive_name(projectpath, "win", "demo" if demo == 1 else "full")
@@ -64,8 +64,7 @@ def main():
     )
 
     files = [
-        projectpath + "\\build-win\\pdbs\\NAMampPlugin-vst3_x64.pdb",
-        projectpath + "\\build-win\\pdbs\\NAMampPlugin-app_x64.pdb",
+        projectpath + "\\build-win\\pdbs\\GatewayModded_x64.pdb",
     ]
 
     for f in files:

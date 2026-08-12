@@ -30,9 +30,9 @@
 	<key>CFBundleExecutable</key>
 	<string>NeuralAmpModeler</string>
 	<key>CFBundleGetInfoString</key>
-	<string>NAMampPlugin v0.10.0 Copyright 2026 bugleev</string>
+	<string>Gateway Modded v0.10.1 Copyright 2026 NAMenjoyer</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.bugleev.audiounit.NAMampPlugin</string>
+	<string>com.namenjoyer.audiounit.GatewayModded</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
