@@ -1054,3 +1054,4 @@ void NeuralAmpModeler::_UpdateMeters(sample** inputPointer, sample** outputPoint
 
 // HACK
 #include "Unserialization.cpp"
+#include "NAMFavoritesStore.cpp"
