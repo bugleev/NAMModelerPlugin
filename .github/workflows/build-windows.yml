@@ -1,0 +1,77 @@
+name: Build Windows
+
+# Build standalone EXE + VST3 on a Windows runner (useful when developing on Linux).
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+env:
+  PROJECT_NAME: NeuralAmpModeler
+
+jobs:
+  build-windows:
+    name: Windows x64 (app + VST3)
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+          architecture: x64
+
+      - name: Get VST3 SDK
+        shell: bash
+        run: |
+          cd iPlug2/Dependencies/IPlug
+          ./download-iplug-sdks.sh
+
+      - name: Get Prebuilt Libs (Windows)
+        shell: bash
+        run: |
+          cd iPlug2/Dependencies
+          ./download-prebuilt-libs.sh win
+
+      - name: Build Windows (EXE + VST3 zip)
+        shell: pwsh
+        run: |
+          cd ${{ env.PROJECT_NAME }}\scripts
+          .\makedist-win.bat full zip
+
+      - name: Resolve archive name
+        id: archive
+        shell: bash
+        run: |
+          ARCHIVE_NAME=$(python iPlug2/Scripts/get_archive_name.py ${{ env.PROJECT_NAME }} win full)
+          echo "name=$ARCHIVE_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload build zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.archive.outputs.name }}
+          path: ${{ env.PROJECT_NAME }}/build-win/out/${{ steps.archive.outputs.name }}.zip
+          if-no-files-found: error
+
+      - name: Upload standalone EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeuralAmpModeler_x64
+          path: ${{ env.PROJECT_NAME }}/build-win/NeuralAmpModeler_x64.exe
+          if-no-files-found: error
+
+      - name: Upload PDBs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.archive.outputs.name }}-pdbs
+          path: ${{ env.PROJECT_NAME }}/build-win/out/${{ steps.archive.outputs.name }}-pdbs.zip
+          if-no-files-found: warn

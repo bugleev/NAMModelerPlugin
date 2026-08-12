@@ -20,7 +20,27 @@ Requires **Visual Studio** (2019/2022) with the C++ desktop workload, and git su
 git submodule update --init --recursive
 ```
 
-### Standalone EXE
+### Build via GitHub Actions (recommended from Linux)
+
+You can build the Windows standalone EXE and VST3 without a local Visual Studio install:
+
+1. Push your changes to GitHub
+2. Open **Actions** → **Build Windows** → **Run workflow**
+3. When it finishes, download artifacts:
+   - `NeuralAmpModeler_x64` — standalone `.exe`
+   - zip with EXE + VST3 (and optional PDBs)
+
+Tagging `v*` (e.g. `v0.9.0`) also triggers this workflow.
+
+Or from the CLI:
+
+```bash
+gh workflow run "Build Windows"
+# wait, then:
+gh run download --name NeuralAmpModeler_x64
+```
+
+### Standalone EXE (local Visual Studio)
 
 1. Open `NeuralAmpModeler\NeuralAmpModeler.sln` in Visual Studio
 2. Configuration: **Release**, platform: **x64**

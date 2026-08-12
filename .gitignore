@@ -1,7 +1,12 @@
 .DS_Store
 xcuserdata
 *.RPP-bak
-build-*
+/NeuralAmpModeler/build-win/
+/NeuralAmpModeler/build-mac/
+/NeuralAmpModeler/build-web/
+/TemplateProject/build-win/
+/TemplateProject/build-mac/
+/TemplateProject/build-web/
 .idea/
 
 *.ipch
