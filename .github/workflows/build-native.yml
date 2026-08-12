@@ -2,12 +2,7 @@ name: Build Native
 
 on:
   workflow_dispatch:
-  pull_request:
-  schedule:
-    - cron: '0 8 * * 2'
-  #push:
-    # tags:
-    #   - "v*"
+  # pull_request / schedule disabled — use Build Windows / Build macOS instead
 
 env:
   PROJECT_NAME: NeuralAmpModeler
@@ -46,7 +41,7 @@ jobs:
       shell: bash
 
     - name: Build macOS
-      if: matrix.os == 'macOS-latest'
+      if: matrix.os == 'macos-latest'
       run: |
         cd ${{env.PROJECT_NAME}}/scripts
         ./makedist-mac.sh full zip

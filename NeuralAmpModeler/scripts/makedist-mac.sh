@@ -51,9 +51,13 @@ BUG_FIX=$(($VERSION & 0x000000FF))
 
 FULL_VERSION=$MAJOR_VERSION"."$MINOR_VERSION"."$BUG_FIX
 
+# Product / bundle name from config.h (e.g. GatewayModded).
 PLUGIN_NAME=`echo | grep BUNDLE_NAME config.h`
 PLUGIN_NAME=${PLUGIN_NAME//\#define BUNDLE_NAME }
 PLUGIN_NAME=${PLUGIN_NAME//\"}
+
+# Xcode project + resource filenames are still NeuralAmpModeler (legacy path).
+PROJECT_NAME=NeuralAmpModeler
 
 NOTARIZE_BUNDLE_ID=${NOTARIZE_BUNDLE_ID:-${INSTALLER_PKG_ID_PREFIX}.${PLUGIN_NAME}}
 NOTARIZE_BUNDLE_ID_DEMO=${NOTARIZE_BUNDLE_ID_DEMO:-${INSTALLER_PKG_ID_PREFIX}.${PLUGIN_NAME}.DEMO}
@@ -152,7 +156,7 @@ fi
 #---------------------------------------------------------------------------------------------------------
 # build xcode project. Change target to build individual formats, or add to All target in the xcode project
 
-xcodebuild -project ./projects/$PLUGIN_NAME-macOS.xcodeproj -xcconfig ./config/$PLUGIN_NAME-mac.xcconfig DEMO_VERSION=$DEMO -target "All" -UseModernBuildSystem=NO -configuration Release | tee build-mac.log | xcpretty #&& exit ${PIPESTATUS[0]}
+xcodebuild -project ./projects/$PROJECT_NAME-macOS.xcodeproj -xcconfig ./config/$PROJECT_NAME-mac.xcconfig DEMO_VERSION=$DEMO -target "All" -UseModernBuildSystem=NO -configuration Release | tee build-mac.log | xcpretty #&& exit ${PIPESTATUS[0]}
 
 if [ "${PIPESTATUS[0]}" -ne "0" ]; then
   echo "ERROR: build failed, aborting"
@@ -170,15 +174,15 @@ echo "setting icons"
 echo ""
 
 if [ -d $AU ]; then
-  ./$SCRIPTS/SetFileIcon -image resources/$PLUGIN_NAME.icns -file $AU
+  ./$SCRIPTS/SetFileIcon -image resources/$PROJECT_NAME.icns -file $AU
 fi
 
 if [ -d $VST3 ]; then
-  ./$SCRIPTS/SetFileIcon -image resources/$PLUGIN_NAME.icns -file $VST3
+  ./$SCRIPTS/SetFileIcon -image resources/$PROJECT_NAME.icns -file $VST3
 fi
 
 if [ -d "${AAX}" ]; then
-  ./$SCRIPTS/SetFileIcon -image resources/$PLUGIN_NAME.icns -file "${AAX}"
+  ./$SCRIPTS/SetFileIcon -image resources/$PROJECT_NAME.icns -file "${AAX}"
 fi
 
 #---------------------------------------------------------------------------------------------------------
@@ -255,20 +259,20 @@ if [ $BUILD_INSTALLER == 1 ]; then
   fi
 
   #set installer icon
-  ./$SCRIPTS/SetFileIcon -image resources/$PLUGIN_NAME.icns -file "${PKG}"
+  ./$SCRIPTS/SetFileIcon -image resources/$PROJECT_NAME.icns -file "${PKG}"
 
   #---------------------------------------------------------------------------------------------------------
   # make dmg, can use dmgcanvas http://www.araelium.com/dmgcanvas/ to make a nice dmg, fallback to hdiutil
   echo "building dmg"
   echo ""
 
-  if [ -d installer/$PLUGIN_NAME.dmgCanvas ]; then
-    dmgcanvas installer/$PLUGIN_NAME.dmgCanvas build-mac/$ARCHIVE_NAME.dmg
+  if [ -d installer/$PROJECT_NAME.dmgCanvas ]; then
+    dmgcanvas installer/$PROJECT_NAME.dmgCanvas build-mac/$ARCHIVE_NAME.dmg
   else
     cp installer/changelog.txt build-mac/installer/
     cp installer/known-issues.txt build-mac/installer/
-    cp "manual/$PLUGIN_NAME manual.pdf" build-mac/installer/
-    hdiutil create build-mac/$ARCHIVE_NAME.dmg -format UDZO -srcfolder build-mac/installer/ -ov -anyowners -volname $PLUGIN_NAME
+    cp "manual/$PROJECT_NAME manual.pdf" build-mac/installer/
+    hdiutil create build-mac/$ARCHIVE_NAME.dmg -format UDZO -srcfolder build-mac/installer/ -ov -anyowners -volname "$PLUGIN_NAME"
   fi
 
   sudo rm -R -f build-mac/installer/

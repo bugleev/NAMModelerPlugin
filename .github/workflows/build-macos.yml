@@ -1,0 +1,60 @@
+name: Build macOS
+
+# Unsigned macOS zip (VST3 + AU + app). No Apple Developer signing/notarization.
+# Users may need right-click → Open the first time (Gatekeeper).
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+env:
+  PROJECT_NAME: NeuralAmpModeler
+
+jobs:
+  build-macos:
+    name: macOS unsigned zip (app + VST3 + AU)
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install xcpretty
+        run: gem install xcpretty
+
+      - name: Get VST3 SDK
+        shell: bash
+        run: |
+          cd iPlug2/Dependencies/IPlug
+          ./download-iplug-sdks.sh
+
+      - name: Get Prebuilt Libs (mac)
+        shell: bash
+        run: |
+          cd iPlug2/Dependencies
+          ./download-prebuilt-libs.sh mac
+
+      - name: Build macOS zip (unsigned)
+        shell: bash
+        run: |
+          cd ${{ env.PROJECT_NAME }}/scripts
+          ./makedist-mac.sh full zip
+
+      - name: Upload macOS zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: GatewayModded-macOS
+          path: ${{ env.PROJECT_NAME }}/build-mac/out/*.zip
+          if-no-files-found: error
+
+      - name: List outputs
+        shell: bash
+        run: ls -la ${{ env.PROJECT_NAME }}/build-mac/out/

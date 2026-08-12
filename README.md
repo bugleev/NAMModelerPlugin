@@ -13,46 +13,36 @@ Fork of [sdatkinson/NeuralAmpModelerPlugin](https://github.com/sdatkinson/Neural
 - Clearer model list text
 - Installs VST3 as `C:\Program Files\Common Files\VST3\GatewayModded.vst3`
 
-## Building on Windows
+## Windows (installer)
 
-Requires **Visual Studio** (2019/2022) with the C++ desktop workload, and git submodules:
-
-```bat
-git submodule update --init --recursive
-```
-
-### Build via GitHub Actions (recommended from Linux)
-
-1. Push changes to GitHub
-2. Open **Actions** → **Build Windows** → **Run workflow**
-3. Download **Gateway Modded Installer** and run it on Windows to install the VST3 + standalone app
+1. Open **Actions** → **Build Windows** → **Run workflow** (or download from [Releases](https://github.com/bugleev/NAMModelerPlugin/releases))
+2. Run **Gateway-Modded-Installer.exe**
 
 ```bash
 gh workflow run "Build Windows"
 gh run download --name NeuralAmpModeler-Installer
 ```
 
-### Local Visual Studio
+Local: open `NeuralAmpModeler\NeuralAmpModeler.sln`, **Release | x64**, build app/VST3 → `GatewayModded_x64.exe` / `GatewayModded.vst3`.
 
-1. Open `NeuralAmpModeler\NeuralAmpModeler.sln`
-2. **Release | x64**
-3. Build **NeuralAmpModeler-app** and/or **NeuralAmpModeler-vst3**
-4. Outputs under `NeuralAmpModeler\build-win\` as `GatewayModded_x64.exe` and `GatewayModded.vst3`
+## macOS (unsigned zip — free / OSS)
 
-Or:
+No Apple Developer signing. Builds are **unsigned**; Gatekeeper will warn once.
 
-```bat
-cd NeuralAmpModeler\scripts
-makedist-win.bat full installer
+1. Open **Actions** → **Build macOS** → **Run workflow**
+2. Download **GatewayModded-macOS** zip
+3. Copy `GatewayModded.vst3` → `~/Library/Audio/Plug-Ins/VST3/`
+4. Copy `GatewayModded.component` → `~/Library/Audio/Plug-Ins/Components/` (AU)
+5. First open: **right-click → Open** (or `xattr -dr com.apple.quarantine` on the bundles)
+
+```bash
+gh workflow run "Build macOS"
+gh run download --name GatewayModded-macOS
 ```
 
 ## Version bumps
 
-```bash
-python3 bump_version.py minor
-```
-
-Or edit `PLUG_VERSION_STR` / `PLUG_VERSION_HEX` in [`NeuralAmpModeler/config.h`](NeuralAmpModeler/config.h).
+Edit `PLUG_VERSION_STR` / `PLUG_VERSION_HEX` in [`NeuralAmpModeler/config.h`](NeuralAmpModeler/config.h).
 
 ## Upstream
 

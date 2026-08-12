@@ -6,7 +6,7 @@
 	<array>
 		<dict>
 			<key>description</key>
-			<string>NeuralAmpModeler</string>
+			<string>GatewayModded</string>
 			<key>factoryFunction</key>
 			<string>NeuralAmpModeler_Factory</string>
 			<key>manufacturer</key>
@@ -28,7 +28,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>English</string>
 	<key>CFBundleExecutable</key>
-	<string>NeuralAmpModeler</string>
+	<string>GatewayModded</string>
 	<key>CFBundleGetInfoString</key>
 	<string>Gateway Modded v0.10.1 Copyright 2026 NAMenjoyer</string>
 	<key>CFBundleIdentifier</key>
@@ -36,7 +36,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>NeuralAmpModeler</string>
+	<string>GatewayModded</string>
 	<key>CFBundlePackageType</key>
 	<string>BNDL</string>
 	<key>CFBundleShortVersionString</key>

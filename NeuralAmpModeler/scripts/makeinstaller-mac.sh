@@ -26,8 +26,12 @@ if [ "$VERSION" == "" ]; then
   exit 1
 fi
 
-PRODUCT_NAME=NeuralAmpModeler
-PKG_ID_PREFIX="${INSTALLER_PKG_ID_PREFIX:-com.StevenAtkinson}"
+# Prefer BUNDLE_NAME from config.h so installer matches the built binaries.
+PRODUCT_NAME=$(grep '#define BUNDLE_NAME' config.h | sed 's/.*"\(.*\)".*/\1/')
+if [ -z "$PRODUCT_NAME" ]; then
+  PRODUCT_NAME=GatewayModded
+fi
+PKG_ID_PREFIX="${INSTALLER_PKG_ID_PREFIX:-com.namenjoyer}"
 
 # locations
 PRODUCTS="build-mac"

@@ -24,6 +24,8 @@ def main():
     xcconfig = parse_xcconfig(
         os.path.join(os.getcwd(), IPLUG2_ROOT + "/../common-mac.xcconfig")
     )
+    # Resource Info.plist filenames keep the Xcode project stem (NeuralAmpModeler).
+    plist_prefix = "NeuralAmpModeler"
 
     CFBundleGetInfoString = (
         config["BUNDLE_NAME"]
@@ -41,7 +43,7 @@ def main():
 
     # VST3
 
-    plistpath = projectpath + "/resources/" + config["BUNDLE_NAME"] + "-VST3-Info.plist"
+    plistpath = projectpath + "/resources/" + plist_prefix + "-VST3-Info.plist"
     with open(plistpath, "rb") as f:
         vst3 = plistlib.load(f)
         vst3["CFBundleExecutable"] = config["BUNDLE_NAME"]
@@ -67,7 +69,7 @@ def main():
 
     # AUDIOUNIT v2
 
-    plistpath = projectpath + "/resources/" + config["BUNDLE_NAME"] + "-AU-Info.plist"
+    plistpath = projectpath + "/resources/" + plist_prefix + "-AU-Info.plist"
     with open(plistpath, "rb") as f:
         auv2 = plistlib.load(f)
         auv2["CFBundleExecutable"] = config["BUNDLE_NAME"]
@@ -122,7 +124,7 @@ def main():
         NSEXTENSIONPOINTIDENTIFIER = "com.apple.AudioUnit"
 
     plistpath = (
-        projectpath + "/resources/" + config["BUNDLE_NAME"] + "-macOS-AUv3-Info.plist"
+        projectpath + "/resources/" + plist_prefix + "-macOS-AUv3-Info.plist"
     )
 
     with open(plistpath, "rb") as f:
@@ -196,7 +198,7 @@ def main():
 
     # AAX
 
-    plistpath = projectpath + "/resources/" + config["BUNDLE_NAME"] + "-AAX-Info.plist"
+    plistpath = projectpath + "/resources/" + plist_prefix + "-AAX-Info.plist"
     with open(plistpath, "rb") as f:
         aax = plistlib.load(f)
         aax["CFBundleExecutable"] = config["BUNDLE_NAME"]
@@ -221,7 +223,7 @@ def main():
     # APP
 
     plistpath = (
-        projectpath + "/resources/" + config["BUNDLE_NAME"] + "-macOS-Info.plist"
+        projectpath + "/resources/" + plist_prefix + "-macOS-Info.plist"
     )
 
     with open(plistpath, "rb") as f:
@@ -244,7 +246,7 @@ def main():
         macOSapp["CFBundleSignature"] = config["PLUG_UNIQUE_ID"]
         macOSapp["CSResourcesFileMapped"] = CSResourcesFileMapped
         macOSapp["NSPrincipalClass"] = "SWELLApplication"
-        macOSapp["NSMainNibFile"] = config["BUNDLE_NAME"] + "-macOS-MainMenu"
+        macOSapp["NSMainNibFile"] = plist_prefix + "-macOS-MainMenu"
         macOSapp["LSApplicationCategoryType"] = "public.app-category.music"
         macOSapp[
             "NSMicrophoneUsageDescription"
