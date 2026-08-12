@@ -1,6 +1,7 @@
 Gateway Modded changelog
 https://github.com/bugleev/NAMModelerPlugin
 
+08/12/2026 - v0.11.0 GATEWAY MODDED title; model list folder row (icon/name/count/favorites); compact header
 08/12/2026 - v0.10.2 Automated tag releases (Windows + macOS); Apple-only favorites link guard
 08/12/2026 - v0.10.1 Gateway Modded rename; favorites filter scoped to current folder; empty-state folder browse; clearer list text
 08/12/2026 - v0.10.0 Persistent model list; rebrand to NAMampPlugin / NAMenjoyer

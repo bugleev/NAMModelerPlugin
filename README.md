@@ -3,13 +3,13 @@
 Fork of [sdatkinson/NeuralAmpModelerPlugin](https://github.com/sdatkinson/NeuralAmpModelerPlugin) — a VST3 / standalone app for loading [Neural Amp Modeler](https://github.com/sdatkinson/neural-amp-modeler) `.nam` models, built with [iPlug2](https://iplug2.github.io).
 
 **Publisher:** NAMenjoyer  
-**Current version: 0.10.2**
+**Current version: 0.11.0**
 
-## What's new in 0.10.2
+## What's new in 0.11.0
 
-- Tag push publishes Windows + macOS artifacts via GitHub Actions (no manual upload)
-- macOS unsigned zip available on the release page
-- Favorites store link guarded to Apple builds only
+- Title branding: **GATEWAY MODDED**
+- Model list toolbar: folder icon + current folder name + model count + Favorites (search removed)
+- Compact list header for more list space
 
 ## Releasing (tag → CI builds + GitHub Release)
 

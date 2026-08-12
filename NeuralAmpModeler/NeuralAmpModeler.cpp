@@ -222,7 +222,7 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
 
     pGraphics->AttachControl(new IBitmapControl(mainBounds, backgroundBitmap))->SetIgnoreMouse(true);
     pGraphics->AttachControl(new IBitmapControl(mainBounds, linesBitmap))->SetIgnoreMouse(true);
-    pGraphics->AttachControl(new IVLabelControl(titleArea, "NAMAMP PLUGIN", titleStyle));
+    pGraphics->AttachControl(new IVLabelControl(titleArea, "GATEWAY MODDED", titleStyle));
     pGraphics->AttachControl(new ISVGControl(modelIconArea, modelIconSVG));
 
 #ifdef NAM_PICK_DIRECTORY
