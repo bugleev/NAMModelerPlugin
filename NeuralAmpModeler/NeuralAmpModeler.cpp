@@ -1054,4 +1054,7 @@ void NeuralAmpModeler::_UpdateMeters(sample** inputPointer, sample** outputPoint
 
 // HACK
 #include "Unserialization.cpp"
+#if defined(__APPLE__)
+// macOS Xcode project doesn't list this file; compile it via the main TU.
 #include "NAMFavoritesStore.cpp"
+#endif
