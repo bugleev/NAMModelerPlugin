@@ -4,9 +4,7 @@ name: Build macOS
 # Users may need right-click → Open the first time (Gatekeeper).
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "v*"
+  # Tag releases are handled by .github/workflows/release.yml (build + publish).
 
 env:
   PROJECT_NAME: NeuralAmpModeler

@@ -1,7 +1,7 @@
 #define PLUG_NAME "Gateway Modded"
 #define PLUG_MFR "NAMenjoyer"
-#define PLUG_VERSION_HEX 0x00000a01
-#define PLUG_VERSION_STR "0.10.1"
+#define PLUG_VERSION_HEX 0x00000a02
+#define PLUG_VERSION_STR "0.10.2"
 #define PLUG_UNIQUE_ID 'NAmp'
 #define PLUG_MFR_ID 'NAMj'
 #define PLUG_URL_STR "https://github.com/bugleev/NAMModelerPlugin"

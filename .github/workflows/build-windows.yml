@@ -4,9 +4,7 @@ name: Build Windows
 # The .exe alone is standalone-only; use the Installer to register the VST3.
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "v*"
+  # Tag releases are handled by .github/workflows/release.yml (build + publish).
 
 env:
   PROJECT_NAME: NeuralAmpModeler

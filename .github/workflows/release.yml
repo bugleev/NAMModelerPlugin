@@ -1,0 +1,186 @@
+name: Release
+
+# Tag push (v*) → build Windows + macOS → publish GitHub Release with assets.
+# No local artifact upload. Manual test builds: use Build Windows / Build macOS (workflow_dispatch).
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  PROJECT_NAME: NeuralAmpModeler
+
+jobs:
+  build-windows:
+    name: Build Windows
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+          architecture: x64
+
+      - name: Locate or install Inno Setup
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          )
+          $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $found) {
+            Write-Host "Installing Inno Setup via Chocolatey..."
+            choco install innosetup --no-progress --yes
+            if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1641 -and $LASTEXITCODE -ne 3010) {
+              throw "choco install innosetup failed with $LASTEXITCODE"
+            }
+            $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $found) { throw "ISCC.exe not found after install" }
+          Write-Host "Using ISCC at: $found"
+          Split-Path -Parent $found | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Get VST3 SDK
+        shell: bash
+        run: |
+          cd iPlug2/Dependencies/IPlug
+          ./download-iplug-sdks.sh
+
+      - name: Get Prebuilt Libs (Windows)
+        shell: bash
+        run: |
+          cd iPlug2/Dependencies
+          ./download-prebuilt-libs.sh win
+
+      - name: Build Windows installer (EXE + VST3)
+        shell: pwsh
+        run: |
+          cd ${{ env.PROJECT_NAME }}\scripts
+          .\makedist-win.bat full installer
+
+      - name: Stage release assets
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          cp "${{ env.PROJECT_NAME }}/build-win/installer/Gateway Modded Installer.exe" \
+            release-assets/Gateway-Modded-Installer.exe
+          # Prefer the packaged zip if present; otherwise skip quietly.
+          shopt -s nullglob
+          for z in "${{ env.PROJECT_NAME }}"/build-win/out/*-win.zip; do
+            cp "$z" release-assets/
+          done
+          if [[ -f "${{ env.PROJECT_NAME }}/build-win/GatewayModded_x64.exe" ]]; then
+            cp "${{ env.PROJECT_NAME }}/build-win/GatewayModded_x64.exe" \
+              release-assets/GatewayModded_x64-standalone-only.exe
+          fi
+          ls -la release-assets
+
+      - name: Upload Windows assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-assets
+          path: release-assets/*
+          if-no-files-found: error
+
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install xcpretty
+        run: gem install xcpretty
+
+      - name: Get VST3 SDK
+        shell: bash
+        run: |
+          cd iPlug2/Dependencies/IPlug
+          ./download-iplug-sdks.sh
+
+      - name: Get Prebuilt Libs (mac)
+        shell: bash
+        run: |
+          cd iPlug2/Dependencies
+          ./download-prebuilt-libs.sh mac
+
+      - name: Build macOS zip (unsigned)
+        shell: bash
+        run: |
+          cd ${{ env.PROJECT_NAME }}/scripts
+          ./makedist-mac.sh full zip
+
+      - name: Stage release assets
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          shopt -s nullglob
+          # Prefer the binary zip; skip dSYMs on the release page (large).
+          for z in "${{ env.PROJECT_NAME }}"/build-mac/out/*-mac.zip; do
+            case "$z" in
+              *-dSYMs.zip) ;;
+              *) cp "$z" release-assets/ ;;
+            esac
+          done
+          ls -la release-assets
+
+      - name: Upload macOS assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release-assets
+          path: release-assets/*
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download Windows assets
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-release-assets
+          path: release-assets
+
+      - name: Download macOS assets
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-release-assets
+          path: release-assets
+
+      - name: List assets
+        run: ls -la release-assets
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }} — Gateway Modded
+          body_path: ${{ env.PROJECT_NAME }}/installer/changelog.txt
+          draft: false
+          prerelease: false
+          files: release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

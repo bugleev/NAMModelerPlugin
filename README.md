@@ -3,42 +3,42 @@
 Fork of [sdatkinson/NeuralAmpModelerPlugin](https://github.com/sdatkinson/NeuralAmpModelerPlugin) — a VST3 / standalone app for loading [Neural Amp Modeler](https://github.com/sdatkinson/neural-amp-modeler) `.nam` models, built with [iPlug2](https://iplug2.github.io).
 
 **Publisher:** NAMenjoyer  
-**Current version: 0.10.1**
+**Current version: 0.10.2**
 
-## What's new in 0.10.1
+## What's new in 0.10.2
 
-- Renamed to **Gateway Modded** / **NAMenjoyer**
-- Favorites filter scoped to the current folder
-- Empty-state folder browse in the model list
-- Clearer model list text
-- Installs VST3 as `C:\Program Files\Common Files\VST3\GatewayModded.vst3`
+- Tag push publishes Windows + macOS artifacts via GitHub Actions (no manual upload)
+- macOS unsigned zip available on the release page
+- Favorites store link guarded to Apple builds only
 
-## Windows (installer)
+## Releasing (tag → CI builds + GitHub Release)
 
-1. Open **Actions** → **Build Windows** → **Run workflow** (or download from [Releases](https://github.com/bugleev/NAMModelerPlugin/releases))
-2. Run **Gateway-Modded-Installer.exe**
+All release artifacts are built and attached **by GitHub Actions**. No local upload.
 
-```bash
-gh workflow run "Build Windows"
-gh run download --name NeuralAmpModeler-Installer
-```
-
-Local: open `NeuralAmpModeler\NeuralAmpModeler.sln`, **Release | x64**, build app/VST3 → `GatewayModded_x64.exe` / `GatewayModded.vst3`.
-
-## macOS (unsigned zip — free / OSS)
-
-No Apple Developer signing. Builds are **unsigned**; Gatekeeper will warn once.
-
-1. Open **Actions** → **Build macOS** → **Run workflow**
-2. Download **GatewayModded-macOS** zip
-3. Copy `GatewayModded.vst3` → `~/Library/Audio/Plug-Ins/VST3/`
-4. Copy `GatewayModded.component` → `~/Library/Audio/Plug-Ins/Components/` (AU)
-5. First open: **right-click → Open** (or `xattr -dr com.apple.quarantine` on the bundles)
+1. Bump version in `NeuralAmpModeler/config.h` (+ changelog)
+2. Commit on `main`
+3. Tag and push the tag (this triggers [`.github/workflows/release.yml`](.github/workflows/release.yml)):
 
 ```bash
-gh workflow run "Build macOS"
-gh run download --name GatewayModded-macOS
+git tag vX.Y.Z
+git push origin main
+git push origin vX.Y.Z
 ```
+
+4. Wait for the **Release** workflow: builds Windows + macOS, then publishes https://github.com/bugleev/NAMModelerPlugin/releases with:
+   - `Gateway-Modded-Installer.exe` (Windows VST3 + standalone)
+   - Windows zip / standalone EXE
+   - `GatewayModded-v*-mac.zip` (unsigned macOS app + VST3 + AU)
+
+### Manual test builds (no release page)
+
+- **Actions → Build Windows / Build macOS → Run workflow** — artifacts only, for testing.
+
+## Install
+
+**Windows:** run `Gateway-Modded-Installer.exe` from the release.
+
+**macOS (unsigned):** unzip, copy `GatewayModded.vst3` → `~/Library/Audio/Plug-Ins/VST3/` and `GatewayModded.component` → `~/Library/Audio/Plug-Ins/Components/`. First open: **right-click → Open** (Gatekeeper).
 
 ## Version bumps
 
