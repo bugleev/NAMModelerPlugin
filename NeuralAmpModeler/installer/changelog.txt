@@ -1,6 +1,7 @@
 NeuralAmpModeler changelog
-https://github.com/sdatkinson/NeuralAmpModelerPlugin
+https://github.com/bugleev/NAMModelerPlugin
 
+08/12/2026 - v0.9.0 Model list popover with search and favorites (Windows)
 00/00/0000 - v0.5.5 Tweak UI
 12/10/2022 - v0.5.6 Tweak UI
 12/16/2022 - v0.5.7

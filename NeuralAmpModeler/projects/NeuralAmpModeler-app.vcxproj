@@ -334,6 +334,8 @@
     <ClInclude Include="..\Colors.h" />
     <ClInclude Include="..\NeuralAmpModeler.h" />
     <ClInclude Include="..\NeuralAmpModelerControls.h" />
+    <ClInclude Include="..\NAMFavoritesStore.h" />
+    <ClInclude Include="..\NAMModelListControl.h" />
     <ClInclude Include="..\..\NeuralAmpModelerCore\NAM\activations.h" />
     <ClInclude Include="..\..\NeuralAmpModelerCore\NAM\conv1d.h" />
     <ClInclude Include="..\..\NeuralAmpModelerCore\NAM\convnet.h" />
@@ -418,6 +420,7 @@
     <ClCompile Include="..\..\NeuralAmpModelerCore\NAM\wavenet\a2_fast.cpp" />
     <ClCompile Include="..\..\NeuralAmpModelerCore\NAM\wavenet\slimmable.cpp" />
     <ClCompile Include="..\ToneStack.cpp" />
+    <ClCompile Include="..\NAMFavoritesStore.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\resources\main.rc" />

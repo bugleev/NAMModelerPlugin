@@ -1,38 +1,59 @@
-# Neural Amp Modeler Plug-in
+# Neural Amp Modeler Plug-in (fork)
 
-[![Build](https://github.com/sdatkinson/NeuralAmpModelerPlugin/actions/workflows/build-native.yml/badge.svg)](https://github.com/sdatkinson/NeuralAmpModelerPlugin/actions/workflows/build-native.yml)
+Fork of [sdatkinson/NeuralAmpModelerPlugin](https://github.com/sdatkinson/NeuralAmpModelerPlugin) — a VST3 / standalone app for loading [Neural Amp Modeler](https://github.com/sdatkinson/neural-amp-modeler) `.nam` models, built with [iPlug2](https://iplug2.github.io).
 
-A VST3/AudioUnit plug-in\* for [Neural Amp Modeler](https://github.com/sdatkinson/neural-amp-modeler), built with [iPlug2](https://iplug2.github.io).
+**Current version: 0.9.0**
 
-- https://www.youtube.com/user/RunawayThumbtack
-- https://github.com/sdatkinson/neural-amp-modeler
+## What's new in 0.9.0
 
-## Building and Installation
+- **Model list popover** — click the loaded model name to browse `.nam` files in the current folder (replaces the native popup menu for models)
+- **Search** — filter the list by filename
+- **Favorites** — star models; Favorites filter shows starred models across folders
+- Favorites are stored in `%LOCALAPPDATA%\NeuralAmpModeler\favorites.json`
+- IR browser behavior is unchanged
 
-To build the app or plugin, there are build scripts in [NeuralAmpModeler/scripts/](https://github.com/sdatkinson/NeuralAmpModelerPlugin/tree/main/NeuralAmpModeler/scripts).
-The [workflows](https://github.com/sdatkinson/NeuralAmpModelerPlugin/tree/main/.github/workflows) can show you how to do this.
+## Building on Windows
 
-### Pre-built installers
+Requires **Visual Studio** (2019/2022) with the C++ desktop workload, and git submodules:
 
-If you want a pre-built installer from this repo without having to , I've made "Gateway", a fork of this repo, availble at https://neuralampmodeler.com/users!
+```bat
+git submodule update --init --recursive
+```
 
-## Supported Platforms
+### Standalone EXE
 
-The Neural Amp Modeler plugin currently supports Windows 10 (64bit) or later, and macOS 10.15 (Catalina) or later.
+1. Open `NeuralAmpModeler\NeuralAmpModeler.sln` in Visual Studio
+2. Configuration: **Release**, platform: **x64**
+3. Build the **NeuralAmpModeler-app** project
+4. Output (after post-build): `NeuralAmpModeler\build-win\NeuralAmpModeler_x64.exe`
 
-For Linux support, there is an LV2 plugin available: https://github.com/mikeoliphant/neural-amp-modeler-lv2.
+### VST3 + EXE via script
 
-## About
+From a Developer Command Prompt / VS-enabled `cmd`:
 
-This is a cleaned up version of [the original iPlug2-based NAM plugin](https://github.com/sdatkinson/iPlug2) with some refactoring to adopt better practices recommended by the developers of iPlug2.
-(Thanks [Oli](https://github.com/olilarkin) for your generous suggestions!)
+```bat
+cd NeuralAmpModeler\scripts
+makedist-win.bat full zip
+```
 
-\*could also support AAX, CLAP, Linux, iOS soon.
+That builds both `NeuralAmpModeler-app` and `NeuralAmpModeler-vst3` and packages under `NeuralAmpModeler\build-win\`.
 
-## Rough edges
+### Version bumps
 
-### Standalone I/O
-The I/O for the standalone doesn't inherit the stability of most plugin hosts (DAWs), so it's a bit sparser on features. For complex routing, the plugin (VST3/AU) inside a plugin host is still the most reliable option.
+From the repo root (needs `pip install semver`):
 
-### Graphics backend
-If you're having trouble with NAM crashing before the GUI comes up, then you might have an unsupported graphics configuration. Usually, this is when you have a dedicated graphics card (like an nVIDIA GPU) and you're using the integrated (CPU) graphics on a Windows system. To fix this, Go to the control panel, pick NAM (or your DAW), and make sure that it uses your graphics card. (If you know more and can help fix this, please make an Issue and let me know more!)
+```bash
+python3 bump_version.py minor   # or major / patch
+```
+
+Or edit `PLUG_VERSION_STR` / `PLUG_VERSION_HEX` in [`NeuralAmpModeler/config.h`](NeuralAmpModeler/config.h) and sync [`NeuralAmpModeler/installer/NeuralAmpModeler.iss`](NeuralAmpModeler/installer/NeuralAmpModeler.iss).
+
+## Upstream
+
+- Original plugin: https://github.com/sdatkinson/NeuralAmpModelerPlugin
+- NAM trainer / models: https://github.com/sdatkinson/neural-amp-modeler
+- Pre-built “Gateway” builds from the original author: https://neuralampmodeler.com/users
+
+## License
+
+Same as upstream — see [LICENSE](LICENSE).

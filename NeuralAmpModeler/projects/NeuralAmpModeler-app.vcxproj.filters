@@ -114,6 +114,7 @@
       <Filter>dsp</Filter>
     </ClCompile>
     <ClCompile Include="..\ToneStack.cpp" />
+    <ClCompile Include="..\NAMFavoritesStore.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\NeuralAmpModeler.h" />
@@ -318,6 +319,8 @@
       <Filter>NAM</Filter>
     </ClInclude>
     <ClInclude Include="..\NeuralAmpModelerControls.h" />
+    <ClInclude Include="..\NAMFavoritesStore.h" />
+    <ClInclude Include="..\NAMModelListControl.h" />
     <ClInclude Include="..\AudioDSPTools\dsp\dsp.h">
       <Filter>dsp</Filter>
     </ClInclude>

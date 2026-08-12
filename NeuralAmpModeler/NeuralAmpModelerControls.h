@@ -1,9 +1,14 @@
 #pragma once
 
+#include <cctype>
 #include <cmath> // std::round
 #include <cstdio> // FILE, fclose
+#include <functional>
 #include <sstream> // std::stringstream
+#include <string>
+#include <string_view>
 #include <unordered_map> // std::unordered_map
+#include <vector>
 #include "IControls.h"
 #include "IPlugPaths.h"
 
@@ -272,10 +277,13 @@ public:
 class NAMFileBrowserControl : public IDirBrowseControlBase
 {
 public:
+  using ShowListFunc = std::function<void(NAMFileBrowserControl*)>;
+
   NAMFileBrowserControl(const IRECT& bounds, int clearMsgTag, const char* labelStr, const char* fileExtension,
                         IFileDialogCompletionHandlerFunc ch, const IVStyle& style, const ISVG& loadSVG,
                         const ISVG& clearSVG, const ISVG& leftSVG, const ISVG& rightSVG, const IBitmap& bitmap,
-                        const ISVG& globeSVG, const char* getButtonLabel, const char* getButtonURL)
+                        const ISVG& globeSVG, const char* getButtonLabel, const char* getButtonURL,
+                        bool useListPopover = false, ShowListFunc showListFunc = nullptr)
   : IDirBrowseControlBase(bounds, fileExtension, false, false)
   , mClearMsgTag(clearMsgTag)
   , mDefaultLabelStr(labelStr)
@@ -290,8 +298,62 @@ public:
   , mGetButtonLabel(getButtonLabel)
   , mGetButtonURL(getButtonURL)
   , mBrowserState(NAMBrowserState::Empty)
+  , mUseListPopover(useListPopover)
+  , mShowListFunc(std::move(showListFunc))
   {
     mIgnoreMouse = true;
+  }
+
+  void GetBrowserFilePaths(std::vector<std::string>& out) const
+  {
+    out.clear();
+    out.reserve(static_cast<size_t>(mItems.GetSize()));
+    for (int i = 0; i < mItems.GetSize(); ++i)
+    {
+      IPopupMenu::Item* pItem = mItems.Get(i);
+      if (!pItem)
+        continue;
+      const int fileIdx = pItem->GetTag();
+      if (fileIdx < 0 || fileIdx >= mFiles.GetSize())
+        continue;
+      out.emplace_back(mFiles.Get(fileIdx)->Get());
+    }
+  }
+
+  void LoadAbsoluteFile(const char* absolutePath)
+  {
+    if (!absolutePath || !absolutePath[0])
+      return;
+
+    WDL_String fullPath(absolutePath);
+    WDL_String directory(absolutePath);
+    directory.remove_filepart(true);
+
+    ClearPathList();
+    AddPath(directory.Get(), "");
+    SetupMenu();
+    SetSelectedFile(fullPath.Get());
+
+    // Windows paths are case-insensitive; fall back if exact match failed.
+    if (mSelectedItemIndex < 0)
+    {
+      auto toLower = [](std::string s) {
+        for (char& c : s)
+          c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        return s;
+      };
+      const std::string want = toLower(absolutePath);
+      for (int fileIdx = 0; fileIdx < mFiles.GetSize(); ++fileIdx)
+      {
+        if (toLower(mFiles.Get(fileIdx)->Get()) == want)
+        {
+          SetSelectedFile(mFiles.Get(fileIdx)->Get());
+          break;
+        }
+      }
+    }
+
+    LoadFileAtCurrentIndex(NAMFileLoadSource::ExistingBrowserSelection);
   }
 
   void Draw(IGraphics& g) override { g.DrawFittedBitmap(mBitmap, mRECT); }
@@ -378,6 +440,10 @@ public:
       if (std::string_view(pCaller->As<IVButtonControl>()->GetLabelStr()) == mDefaultLabelStr.Get())
       {
         loadFileFunc(pCaller);
+      }
+      else if (mUseListPopover && mShowListFunc)
+      {
+        mShowListFunc(this);
       }
       else
       {
@@ -549,6 +615,8 @@ private:
   NAMBrowserState mBrowserState;
   NAMSquareButtonControl* mClearButton = nullptr;
   NAMGetButtonControl* mGetButton = nullptr;
+  bool mUseListPopover = false;
+  ShowListFunc mShowListFunc;
 };
 
 class NAMMeterControl : public IVPeakAvgMeterControl<>, public IBitmapBase
