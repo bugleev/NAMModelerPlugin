@@ -1,6 +1,7 @@
 name: Build Windows
 
-# Build standalone EXE + VST3 on a Windows runner (useful when developing on Linux).
+# Build Windows installer (VST3 + standalone) on a Windows runner.
+# The .exe alone is standalone-only; use the Installer to register the VST3.
 on:
   workflow_dispatch:
   push:
@@ -12,7 +13,7 @@ env:
 
 jobs:
   build-windows:
-    name: Windows x64 (app + VST3)
+    name: Windows x64 installer (app + VST3)
     runs-on: windows-latest
 
     steps:
@@ -30,6 +31,26 @@ jobs:
           python-version: "3.x"
           architecture: x64
 
+      - name: Locate or install Inno Setup
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          )
+          $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $found) {
+            Write-Host "Installing Inno Setup via Chocolatey..."
+            choco install innosetup --no-progress --yes
+            if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1641 -and $LASTEXITCODE -ne 3010) {
+              throw "choco install innosetup failed with $LASTEXITCODE"
+            }
+            $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $found) { throw "ISCC.exe not found after install" }
+          Write-Host "Using ISCC at: $found"
+          Split-Path -Parent $found | Out-File -FilePath $env:GITHUB_PATH -Append
+
       - name: Get VST3 SDK
         shell: bash
         run: |
@@ -42,11 +63,11 @@ jobs:
           cd iPlug2/Dependencies
           ./download-prebuilt-libs.sh win
 
-      - name: Build Windows (EXE + VST3 zip)
+      - name: Build Windows installer (EXE + VST3)
         shell: pwsh
         run: |
           cd ${{ env.PROJECT_NAME }}\scripts
-          .\makedist-win.bat full zip
+          .\makedist-win.bat full installer
 
       - name: Resolve archive name
         id: archive
@@ -55,19 +76,26 @@ jobs:
           ARCHIVE_NAME=$(python iPlug2/Scripts/get_archive_name.py ${{ env.PROJECT_NAME }} win full)
           echo "name=$ARCHIVE_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: Upload build zip
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeuralAmpModeler-Installer
+          path: ${{ env.PROJECT_NAME }}/build-win/installer/NeuralAmpModeler Installer.exe
+          if-no-files-found: error
+
+      - name: Upload packaged zip (installer + docs)
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.archive.outputs.name }}
           path: ${{ env.PROJECT_NAME }}/build-win/out/${{ steps.archive.outputs.name }}.zip
           if-no-files-found: error
 
-      - name: Upload standalone EXE
+      - name: Upload standalone EXE (no VST3 install)
         uses: actions/upload-artifact@v4
         with:
-          name: NeuralAmpModeler_x64
+          name: NeuralAmpModeler_x64-standalone-only
           path: ${{ env.PROJECT_NAME }}/build-win/NeuralAmpModeler_x64.exe
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Upload PDBs
         uses: actions/upload-artifact@v4

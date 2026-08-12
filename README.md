@@ -22,13 +22,13 @@ git submodule update --init --recursive
 
 ### Build via GitHub Actions (recommended from Linux)
 
-You can build the Windows standalone EXE and VST3 without a local Visual Studio install:
+You can build Windows binaries without a local Visual Studio install:
 
 1. Push your changes to GitHub
 2. Open **Actions** → **Build Windows** → **Run workflow**
 3. When it finishes, download artifacts:
-   - `NeuralAmpModeler_x64` — standalone `.exe`
-   - zip with EXE + VST3 (and optional PDBs)
+   - **NeuralAmpModeler-Installer** — run this to install the **VST3** (into `C:\Program Files\Common Files\VST3\`) plus the standalone app. This is what you want for DAW use (like Gateway).
+   - `NeuralAmpModeler_x64-standalone-only` — just the `.exe`; it runs alone and does **not** register as a VST3.
 
 Tagging `v*` (e.g. `v0.9.0`) also triggers this workflow.
 
@@ -37,7 +37,7 @@ Or from the CLI:
 ```bash
 gh workflow run "Build Windows"
 # wait, then:
-gh run download --name NeuralAmpModeler_x64
+gh run download --name NeuralAmpModeler-Installer
 ```
 
 ### Standalone EXE (local Visual Studio)
