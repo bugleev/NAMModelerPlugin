@@ -141,7 +141,9 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     const auto meterBackgroundBitmap = pGraphics->LoadBitmap(METERBACKGROUND_FN);
 
     const auto b = pGraphics->GetBounds();
-    const auto mainArea = b.GetPadded(-20);
+    // Keep original knob layout in the top band; list panel lives below.
+    const auto mainBounds = b.GetFromTop(400.f);
+    const auto mainArea = mainBounds.GetPadded(-20);
     const auto contentArea = mainArea.GetPadded(-10);
     const auto titleHeight = 50.0f;
     const auto titleArea = contentArea.GetFromTop(titleHeight);
@@ -182,7 +184,7 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     const auto outputMeterArea = contentArea.GetFromRight(30).GetHShifted(20).GetMidVPadded(100).GetVShifted(-25);
 
     // Misc Areas
-    const auto settingsButtonArea = CornerButtonArea(b);
+    const auto settingsButtonArea = CornerButtonArea(mainBounds);
 
     // Model loader button
     auto loadModelCompletionHandler = [&](const WDL_String& fileName, const WDL_String& path) {
@@ -218,9 +220,9 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
       }
     };
 
-    pGraphics->AttachBackground(BACKGROUND_FN);
-    pGraphics->AttachControl(new IBitmapControl(b, linesBitmap));
-    pGraphics->AttachControl(new IVLabelControl(titleArea, "NEURAL AMP MODELER", titleStyle));
+    pGraphics->AttachControl(new IBitmapControl(mainBounds, backgroundBitmap))->SetIgnoreMouse(true);
+    pGraphics->AttachControl(new IBitmapControl(mainBounds, linesBitmap))->SetIgnoreMouse(true);
+    pGraphics->AttachControl(new IVLabelControl(titleArea, "NAMAMP PLUGIN", titleStyle));
     pGraphics->AttachControl(new ISVGControl(modelIconArea, modelIconSVG));
 
 #ifdef NAM_PICK_DIRECTORY
@@ -231,40 +233,34 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     const std::string defaultIRString = "Select IR...";
 #endif
     // Getting started page listing additional resources
-    const char* const getUrl = "https://www.neuralampmodeler.com/users#comp-marb84o5";
+    const char* const getUrl = "https://github.com/bugleev/NAMModelerPlugin";
 
-    auto dismissModelList = [pGraphics]() {
-      if (auto* backdrop = pGraphics->GetControlWithTag(kCtrlTagModelListBackdrop))
-        backdrop->Hide(true);
-      if (auto* popover = pGraphics->GetControlWithTag(kCtrlTagModelListPopover))
-        popover->Hide(true);
-      pGraphics->SetAllControlsDirty();
-    };
-
-    auto showModelList = [pGraphics, dismissModelList](NAMFileBrowserControl* browser) {
-      if (!browser)
+    auto refreshModelList = [pGraphics]() {
+      auto* browserCtrl = pGraphics->GetControlWithTag(kCtrlTagModelFileBrowser);
+      auto* listCtrl = pGraphics->GetControlWithTag(kCtrlTagModelListPanel);
+      if (!browserCtrl || !listCtrl)
         return;
-      auto* popover = pGraphics->GetControlWithTag(kCtrlTagModelListPopover)->As<NAMModelListPopover>();
-      auto* backdrop = pGraphics->GetControlWithTag(kCtrlTagModelListBackdrop);
-      if (!popover || !backdrop)
+      auto* browser = browserCtrl->As<NAMFileBrowserControl>();
+      auto* list = listCtrl->As<NAMModelListPanel>();
+      if (!browser || !list)
         return;
-
       std::vector<std::string> files;
       browser->GetBrowserFilePaths(files);
       WDL_String selected;
       browser->GetSelectedFile(selected);
+      list->SetDirectoryFiles(files, selected.Get());
+    };
 
-      popover->SetDismissFunc(dismissModelList);
-      popover->Open(files, selected.Get(), [browser](const std::string& path) { browser->LoadAbsoluteFile(path.c_str()); });
-      backdrop->Hide(false);
-      popover->Hide(false);
-      pGraphics->SetAllControlsDirty();
+    auto loadModelCompletionHandlerWithRefresh = [loadModelCompletionHandler, refreshModelList](const WDL_String& fileName,
+                                                                                                const WDL_String& path) {
+      loadModelCompletionHandler(fileName, path);
+      refreshModelList();
     };
 
     pGraphics->AttachControl(
       new NAMFileBrowserControl(modelArea, kMsgTagClearModel, defaultNamFileString.c_str(), "nam",
-                                loadModelCompletionHandler, style, fileSVG, crossSVG, leftArrowSVG, rightArrowSVG,
-                                fileBackgroundBitmap, globeSVG, "Get NAM Models", getUrl, true, showModelList),
+                                loadModelCompletionHandlerWithRefresh, style, fileSVG, crossSVG, leftArrowSVG,
+                                rightArrowSVG, fileBackgroundBitmap, globeSVG, "Get NAM Models", getUrl, false, nullptr),
       kCtrlTagModelFileBrowser);
 
     auto hideSlimOverlay = [](IControl* pCaller) {
@@ -329,25 +325,24 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
                       kCtrlTagSettingsBox)
       ->Hide(true);
 
-    // Model list popover (anchored above the model file browser)
-    const float listWidth = std::min(520.f, b.W() - 40.f);
-    const float listHeight = 230.f;
-    const auto listPopoverArea =
-      IRECT(modelArea.MW() - 0.5f * listWidth, modelArea.T - listHeight - 6.f, modelArea.MW() + 0.5f * listWidth,
-            modelArea.T - 6.f);
-    auto dismissModelListFromBackdrop = [pGraphics](IControl* /*pCaller*/) {
-      if (auto* popover = pGraphics->GetControlWithTag(kCtrlTagModelListPopover))
-        popover->As<NAMModelListPopover>()->Dismiss();
-    };
-    pGraphics
-      ->AttachControl(new NAMModelListBackdropControl(b, dismissModelListFromBackdrop), kCtrlTagModelListBackdrop)
-      ->Hide(true);
-    pGraphics
-      ->AttachControl(new NAMModelListPopover(listPopoverArea, style, starOutlineSVG, starFilledSVG, crossSVG),
-                      kCtrlTagModelListPopover)
-      ->Hide(true);
+    // Persistent model list at the bottom (always visible)
+    pGraphics->AttachControl(new IPanelControl(b.GetReducedFromTop(400.f), IColor(255, 16, 16, 18)))
+      ->SetIgnoreMouse(true);
+    const auto listArea = b.GetReducedFromTop(408.f).GetPadded(-12.f);
+    auto* modelListPanel =
+      pGraphics->AttachControl(new NAMModelListPanel(listArea, style, starOutlineSVG, starFilledSVG),
+                               kCtrlTagModelListPanel)
+        ->As<NAMModelListPanel>();
+    modelListPanel->SetLoadFunc([pGraphics, refreshModelList](const std::string& path) {
+      if (auto* browser = pGraphics->GetControlWithTag(kCtrlTagModelFileBrowser)->As<NAMFileBrowserControl>())
+      {
+        browser->LoadAbsoluteFile(path.c_str());
+        refreshModelList();
+      }
+    });
+    refreshModelList();
 
-    const auto slimKnobArea = b.GetCentredInside(100.f, NAM_KNOB_HEIGHT + 24.f);
+    const auto slimKnobArea = mainBounds.GetCentredInside(100.f, NAM_KNOB_HEIGHT + 24.f);
     pGraphics->AttachControl(new NAMSlimOverlayBackdropControl(b, hideSlimOverlay), kCtrlTagSlimOverlayBackdrop)
       ->Hide(true);
     pGraphics
@@ -553,6 +548,21 @@ void NeuralAmpModeler::OnUIOpen()
   if (mModel != nullptr)
   {
     _UpdateControlsFromModel();
+  }
+
+  if (auto* pGraphics = GetUI())
+  {
+    if (auto* browser = pGraphics->GetControlWithTag(kCtrlTagModelFileBrowser)->As<NAMFileBrowserControl>())
+    {
+      if (auto* list = pGraphics->GetControlWithTag(kCtrlTagModelListPanel)->As<NAMModelListPanel>())
+      {
+        std::vector<std::string> files;
+        browser->GetBrowserFilePaths(files);
+        WDL_String selected;
+        browser->GetSelectedFile(selected);
+        list->SetDirectoryFiles(files, selected.Get());
+      }
+    }
   }
 }
 

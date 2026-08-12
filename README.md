@@ -1,16 +1,15 @@
-# Neural Amp Modeler Plug-in (fork)
+# NAMampPlugin
 
 Fork of [sdatkinson/NeuralAmpModelerPlugin](https://github.com/sdatkinson/NeuralAmpModelerPlugin) — a VST3 / standalone app for loading [Neural Amp Modeler](https://github.com/sdatkinson/neural-amp-modeler) `.nam` models, built with [iPlug2](https://iplug2.github.io).
 
-**Current version: 0.9.0**
+**Publisher:** bugleev  
+**Current version: 0.10.0**
 
-## What's new in 0.9.0
+## What's new in 0.10.0
 
-- **Model list popover** — click the loaded model name to browse `.nam` files in the current folder (replaces the native popup menu for models)
-- **Search** — filter the list by filename
-- **Favorites** — star models; Favorites filter shows starred models across folders
-- Favorites are stored in `%LOCALAPPDATA%\NeuralAmpModeler\favorites.json`
-- IR browser behavior is unchanged
+- Persistent **MODEL LIST** panel always visible at the bottom of the UI (search + favorites)
+- Rebranded to **NAMampPlugin** / **bugleev** (installer and VST3 bundle no longer use Steven Atkinson / NeuralAmpModeler names)
+- Installs VST3 as `C:\Program Files\Common Files\VST3\NAMampPlugin.vst3`
 
 ## Building on Windows
 
@@ -22,57 +21,41 @@ git submodule update --init --recursive
 
 ### Build via GitHub Actions (recommended from Linux)
 
-You can build Windows binaries without a local Visual Studio install:
-
-1. Push your changes to GitHub
+1. Push changes to GitHub
 2. Open **Actions** → **Build Windows** → **Run workflow**
-3. When it finishes, download artifacts:
-   - **NeuralAmpModeler-Installer** — run this to install the **VST3** (into `C:\Program Files\Common Files\VST3\`) plus the standalone app. This is what you want for DAW use (like Gateway).
-   - `NeuralAmpModeler_x64-standalone-only` — just the `.exe`; it runs alone and does **not** register as a VST3.
-
-Tagging `v*` (e.g. `v0.9.0`) also triggers this workflow.
-
-Or from the CLI:
+3. Download **NAMampPlugin Installer** and run it on Windows to install the VST3 + standalone app
 
 ```bash
 gh workflow run "Build Windows"
-# wait, then:
 gh run download --name NeuralAmpModeler-Installer
 ```
 
-### Standalone EXE (local Visual Studio)
+### Local Visual Studio
 
-1. Open `NeuralAmpModeler\NeuralAmpModeler.sln` in Visual Studio
-2. Configuration: **Release**, platform: **x64**
-3. Build the **NeuralAmpModeler-app** project
-4. Output (after post-build): `NeuralAmpModeler\build-win\NeuralAmpModeler_x64.exe`
+1. Open `NeuralAmpModeler\NeuralAmpModeler.sln`
+2. **Release | x64**
+3. Build **NeuralAmpModeler-app** and/or **NeuralAmpModeler-vst3**
+4. Outputs under `NeuralAmpModeler\build-win\` as `NAMampPlugin_x64.exe` and `NAMampPlugin.vst3`
 
-### VST3 + EXE via script
-
-From a Developer Command Prompt / VS-enabled `cmd`:
+Or:
 
 ```bat
 cd NeuralAmpModeler\scripts
-makedist-win.bat full zip
+makedist-win.bat full installer
 ```
 
-That builds both `NeuralAmpModeler-app` and `NeuralAmpModeler-vst3` and packages under `NeuralAmpModeler\build-win\`.
-
-### Version bumps
-
-From the repo root (needs `pip install semver`):
+## Version bumps
 
 ```bash
-python3 bump_version.py minor   # or major / patch
+python3 bump_version.py minor
 ```
 
-Or edit `PLUG_VERSION_STR` / `PLUG_VERSION_HEX` in [`NeuralAmpModeler/config.h`](NeuralAmpModeler/config.h) and sync [`NeuralAmpModeler/installer/NeuralAmpModeler.iss`](NeuralAmpModeler/installer/NeuralAmpModeler.iss).
+Or edit `PLUG_VERSION_STR` / `PLUG_VERSION_HEX` in [`NeuralAmpModeler/config.h`](NeuralAmpModeler/config.h).
 
 ## Upstream
 
 - Original plugin: https://github.com/sdatkinson/NeuralAmpModelerPlugin
 - NAM trainer / models: https://github.com/sdatkinson/neural-amp-modeler
-- Pre-built “Gateway” builds from the original author: https://neuralampmodeler.com/users
 
 ## License
 

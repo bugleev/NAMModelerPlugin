@@ -50,18 +50,18 @@ def main():
         ),
         "AppCopyright": env_or_default(
             "INSTALLER_APP_COPYRIGHT",
-            "Copyright (C) 2022 Steven Atkinson",
+            "Copyright (C) 2026 bugleev",
         ),
         "AppPublisher": env_or_default(
-            "INSTALLER_APP_PUBLISHER", "Steven Atkinson"
+            "INSTALLER_APP_PUBLISHER", "bugleev"
         ),
         "AppPublisherURL": env_or_default(
             "INSTALLER_APP_PUBLISHER_URL",
-            "https://www.neuralampmodeler.com/",
+            "https://github.com/bugleev/NAMModelerPlugin",
         ),
         "AppSupportURL": env_or_default(
             "INSTALLER_APP_SUPPORT_URL",
-            "https://www.neuralampmodeler.com/",
+            "https://github.com/bugleev/NAMModelerPlugin",
         ),
         "AppVersion": config["FULL_VER_STR"],
         "VersionInfoVersion": config["FULL_VER_STR"],

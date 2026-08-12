@@ -15,99 +15,51 @@
 using namespace iplug;
 using namespace igraphics;
 
-// Full-window dim layer; click dismisses the model list popover.
-class NAMModelListBackdropControl : public IControl
-{
-public:
-  NAMModelListBackdropControl(const IRECT& bounds, IActionFunction dismiss)
-  : IControl(bounds, dismiss)
-  , mDismiss(dismiss)
-  {
-  }
-
-  void Draw(IGraphics& g) override { g.FillRect(COLOR_BLACK.WithOpacity(0.35f), mRECT); }
-
-  void OnMouseDown(float /*x*/, float /*y*/, const IMouseMod& /*mod*/) override
-  {
-    if (mDismiss)
-      mDismiss(this);
-  }
-
-private:
-  IActionFunction mDismiss;
-};
-
-class NAMModelListPopover : public IContainerBase
+// Always-visible model browser panel (TONEX-style list at the bottom of the UI).
+class NAMModelListPanel : public IContainerBase
 {
 public:
   using LoadFunc = std::function<void(const std::string& path)>;
-  using DismissFunc = std::function<void()>;
 
-  NAMModelListPopover(const IRECT& bounds, const IVStyle& style, const ISVG& starOutlineSVG, const ISVG& starFilledSVG,
-                      const ISVG& closeSVG)
+  NAMModelListPanel(const IRECT& bounds, const IVStyle& style, const ISVG& starOutlineSVG, const ISVG& starFilledSVG)
   : IContainerBase(bounds)
   , mStyle(style)
   , mStarOutlineSVG(starOutlineSVG)
   , mStarFilledSVG(starFilledSVG)
-  , mCloseSVG(closeSVG)
   {
     mIgnoreMouse = false;
   }
 
-  void SetDismissFunc(DismissFunc dismiss) { mDismissFunc = std::move(dismiss); }
+  void SetLoadFunc(LoadFunc onLoad) { mOnLoad = std::move(onLoad); }
 
-  void Open(const std::vector<std::string>& directoryFiles, const std::string& selectedPath, LoadFunc onLoad)
+  void SetDirectoryFiles(const std::vector<std::string>& directoryFiles, const std::string& selectedPath)
   {
     mDirectoryFiles = directoryFiles;
     mSelectedPath = selectedPath;
-    mOnLoad = std::move(onLoad);
-    mSearchQuery.clear();
-    mFavoritesOnly = false;
-    mScrollOffset = 0.f;
-    mHoverRow = -1;
     mFavorites.Load();
-    if (mSearchControl)
-      mSearchControl->SetStr("");
     RebuildVisibleList();
     UpdateHeaderLabels();
-    Hide(false);
     SetDirty(true);
   }
 
-  void Dismiss()
+  void SetSelectedPath(const std::string& selectedPath)
   {
-    Hide(true);
-    if (mDismissFunc)
-      mDismissFunc();
-  }
-
-  bool OnKeyDown(float /*x*/, float /*y*/, const IKeyPress& key) override
-  {
-    if (key.VK == kVK_ESCAPE)
-    {
-      Dismiss();
-      return true;
-    }
-    return false;
+    mSelectedPath = selectedPath;
+    SetDirty(false);
   }
 
   void OnAttached() override
   {
     const float pad = 8.f;
-    const float headerH = 28.f;
-    const float toolH = 28.f;
+    const float headerH = 26.f;
+    const float toolH = 26.f;
     IRECT inner = mRECT.GetPadded(-pad);
     mHeaderBounds = inner.GetFromTop(headerH);
     mToolBounds = inner.GetFromTop(headerH + 4.f + toolH).GetFromBottom(toolH);
     mListBounds = inner.GetReducedFromTop(headerH + toolH + 10.f);
 
-    const auto closeBounds = mHeaderBounds.GetFromRight(22.f).GetCentredInside(18.f, 18.f);
     const auto favBounds = mToolBounds.GetFromRight(92.f);
     const auto searchBounds = mToolBounds.GetReducedFromRight(100.f);
-
-    auto closeAction = [this](IControl* /*pCaller*/) { Dismiss(); };
-    AddChildControl(new ISVGButtonControl(closeBounds, DefaultClickActionFunc, mCloseSVG, mCloseSVG))
-      ->SetAnimationEndActionFunction(closeAction);
 
     const IText searchText(13.f, COLOR_WHITE, "Roboto-Regular", EAlign::Near, EVAlign::Middle);
     mSearchControl = new SearchFieldControl(searchBounds, searchText, [this](const std::string& q) {
@@ -131,22 +83,30 @@ public:
     });
     AddChildControl(mFavToggle);
 
-    mCountLabel =
-      new IVLabelControl(mHeaderBounds.GetReducedFromRight(28.f), "0 models",
+    mTitleLabel =
+      new IVLabelControl(mHeaderBounds.GetFromLeft(140.f), "MODEL LIST",
                          mStyle.WithDrawFrame(false).WithValueText(
-                           IText(13.f, PluginColors::NAM_THEMEFONTCOLOR, "Roboto-Regular", EAlign::Near)));
+                           IText(14.f, PluginColors::NAM_THEMEFONTCOLOR, "Roboto-Regular", EAlign::Near)));
+    AddChildControl(mTitleLabel);
+
+    mCountLabel =
+      new IVLabelControl(mHeaderBounds.GetReducedFromLeft(150.f), "0 models",
+                         mStyle.WithDrawFrame(false).WithValueText(
+                           IText(12.f, PluginColors::NAM_THEMEFONTCOLOR.WithOpacity(0.75f), "Roboto-Regular",
+                                 EAlign::Near)));
     AddChildControl(mCountLabel);
 
+    mFavorites.Load();
+    RebuildVisibleList();
+    UpdateHeaderLabels();
     OnResize();
   }
 
   void Draw(IGraphics& g) override
   {
-    // Panel background
-    g.FillRoundRect(IColor(255, 24, 24, 28), mRECT, 6.f);
-    g.DrawRoundRect(PluginColors::NAM_THEMECOLOR.WithOpacity(0.55f), mRECT, 6.f, nullptr, 1.f);
+    g.FillRoundRect(IColor(255, 22, 22, 26), mRECT, 6.f);
+    g.DrawRoundRect(PluginColors::NAM_THEMECOLOR.WithOpacity(0.45f), mRECT, 6.f, nullptr, 1.f);
 
-    // List rows
     g.PathClipRegion(mListBounds);
     const int first = static_cast<int>(mScrollOffset / kRowHeight);
     const int visibleCount = static_cast<int>(std::ceil(mListBounds.H() / kRowHeight)) + 1;
@@ -168,15 +128,14 @@ public:
 
       const IRECT starBounds = row.GetFromRight(kStarColW).GetCentredInside(16.f, 16.f);
       const IRECT nameBounds = row.GetPadded(-8.f, 0.f, -kStarColW, 0.f);
-      const std::string name = FileNameFromPath(path);
-      g.DrawText(IText(13.f, COLOR_WHITE, "Roboto-Regular", EAlign::Near, EVAlign::Middle), name.c_str(), nameBounds);
+      g.DrawText(IText(13.f, COLOR_WHITE, "Roboto-Regular", EAlign::Near, EVAlign::Middle),
+                 FileNameFromPath(path).c_str(), nameBounds);
 
       const bool fav = mFavorites.IsFavorite(path);
       g.DrawSVG(fav ? mStarFilledSVG : mStarOutlineSVG, starBounds);
     }
-    g.PathClipRegion(IRECT()); // clear clip
+    g.PathClipRegion(IRECT());
 
-    // Scroll hint bar
     if (mVisible.size() * kRowHeight > mListBounds.H() + 0.5f)
     {
       const float contentH = static_cast<float>(mVisible.size()) * kRowHeight;
@@ -210,9 +169,9 @@ public:
     IContainerBase::OnMouseOut();
   }
 
-  void OnMouseWheel(float x, float y, const IMouseMod& mod, float d) override
+  void OnMouseWheel(float x, float y, const IMouseMod& /*mod*/, float d) override
   {
-    if (!mListBounds.Contains(x, y) && !mRECT.Contains(x, y))
+    if (!mRECT.Contains(x, y))
       return;
     mScrollOffset -= d * kRowHeight * 1.5f;
     ClampScroll();
@@ -222,8 +181,6 @@ public:
 
   void OnMouseDown(float x, float y, const IMouseMod& mod) override
   {
-    // Let children handle header/tool clicks first via normal hit testing; this
-    // is only invoked for the container itself when children don't claim the event.
     if (!mListBounds.Contains(x, y))
     {
       IContainerBase::OnMouseDown(x, y, mod);
@@ -247,9 +204,9 @@ public:
     }
 
     mSelectedPath = path;
+    SetDirty(true);
     if (mOnLoad)
       mOnLoad(path);
-    Dismiss();
   }
 
 private:
@@ -276,7 +233,7 @@ private:
       IEditableTextControl::OnMouseDown(x, y, mod);
     }
 
-    void OnTextEntryCompletion(const char* str, int valIdx) override
+    void OnTextEntryCompletion(const char* str, int /*valIdx*/) override
     {
       std::string query = str ? str : "";
       mPlaceholder = query.empty();
@@ -383,7 +340,6 @@ private:
   IVStyle mStyle;
   ISVG mStarOutlineSVG;
   ISVG mStarFilledSVG;
-  ISVG mCloseSVG;
   NAMFavoritesStore mFavorites;
   std::vector<std::string> mDirectoryFiles;
   std::vector<std::string> mVisible;
@@ -393,12 +349,12 @@ private:
   float mScrollOffset = 0.f;
   int mHoverRow = -1;
   LoadFunc mOnLoad;
-  DismissFunc mDismissFunc;
 
   IRECT mHeaderBounds;
   IRECT mToolBounds;
   IRECT mListBounds;
   SearchFieldControl* mSearchControl = nullptr;
   IVButtonControl* mFavToggle = nullptr;
+  IVLabelControl* mTitleLabel = nullptr;
   IVLabelControl* mCountLabel = nullptr;
 };

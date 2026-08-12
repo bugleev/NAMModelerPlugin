@@ -38,7 +38,7 @@ bool NAMFavoritesStore::PathsEqual(const std::string& a, const std::string& b)
 std::string NAMFavoritesStore::GetStorePath()
 {
   WDL_String dir;
-  iplug::INIPath(dir, "NeuralAmpModeler");
+  iplug::INIPath(dir, "NAMampPlugin");
   std::filesystem::path folder(dir.Get());
   std::error_code ec;
   std::filesystem::create_directories(folder, ec);

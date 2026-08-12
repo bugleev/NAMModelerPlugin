@@ -1029,14 +1029,14 @@ private:
 
       buildInfoStr.SetFormatted(100, "Version %s %s %s", verStr.Get(), PLUG()->GetArchStr(), PLUG()->GetAPIStr());
 
-      AddChildControl(new IURLControl(GetRECT().SubRectVertical(5, 0), "NEURAL AMP MODELER",
-                                      "https://www.neuralampmodeler.com", mText, COLOR_TRANSPARENT,
+      AddChildControl(new IURLControl(GetRECT().SubRectVertical(5, 0), "NAMAMP PLUGIN",
+                                      "https://github.com/bugleev/NAMModelerPlugin", mText, COLOR_TRANSPARENT,
                                       PluginColors::HELP_TEXT_MO, PluginColors::HELP_TEXT_CLICKED));
-      AddChildControl(new IVLabelControl(GetRECT().SubRectVertical(5, 1), "By Steven Atkinson", mStyle));
+      AddChildControl(new IVLabelControl(GetRECT().SubRectVertical(5, 1), "By bugleev", mStyle));
       AddChildControl(new IVLabelControl(GetRECT().SubRectVertical(5, 2), buildInfoStr.Get(), mStyle));
       AddChildControl(new IURLControl(GetRECT().SubRectVertical(5, 3),
-                                      "Plug-in development: Steve Atkinson, Oli Larkin, ... ",
-                                      "https://github.com/sdatkinson/NeuralAmpModelerPlugin/graphs/contributors", mText,
+                                      "Based on Neural Amp Modeler by Steven Atkinson et al.",
+                                      "https://github.com/sdatkinson/NeuralAmpModelerPlugin", mText,
                                       COLOR_TRANSPARENT, PluginColors::HELP_TEXT_MO, PluginColors::HELP_TEXT_CLICKED));
       AddChildControl(new ThirdPartyNoticesControl(GetRECT().SubRectVertical(5, 4), mText));
     };

@@ -7,9 +7,9 @@
 	<key>CFBundleExecutable</key>
 	<string>NeuralAmpModeler</string>
 	<key>CFBundleGetInfoString</key>
-	<string>NeuralAmpModeler v0.9.0 Copyright 2022 Steven Atkinson</string>
+	<string>NAMampPlugin v0.10.0 Copyright 2026 bugleev</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.StevenAtkinson.vst3.NeuralAmpModeler</string>
+	<string>com.bugleev.vst3.NAMampPlugin</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -17,11 +17,11 @@
 	<key>CFBundlePackageType</key>
 	<string>BNDL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>0.9.0</string>
+	<string>0.10.0</string>
 	<key>CFBundleSignature</key>
 	<string>1YEo</string>
 	<key>CFBundleVersion</key>
-	<string>0.9.0</string>
+	<string>0.10.0</string>
 	<key>CSResourcesFileMapped</key>
 	<true/>
 	<key>LSMinimumSystemVersion</key>
