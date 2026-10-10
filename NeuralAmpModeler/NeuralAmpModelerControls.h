@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm> // std::min
 #include <cctype>
 #include <cmath> // std::round
 #include <cstdio> // FILE, fclose
@@ -9,6 +10,7 @@
 #include <string_view>
 #include <unordered_map> // std::unordered_map
 #include <vector>
+#include "Colors.h"
 #include "IControls.h"
 #include "IPlugPaths.h"
 
@@ -130,6 +132,218 @@ public:
                {}, &mBlend);
     g.DrawCircle(COLOR_BLACK.WithOpacity(0.5f), data[1][0], data[1][1], 3, &mBlend);
   }
+};
+
+// A knob that cycles through the captures (.nam files) in the folder that the model browser
+// currently has loaded. It owns no plugin parameter: turning it steps the file browser's
+// selection, which loads the capture through exactly the same path as clicking a row in the
+// model list. Dragging up goes to the next capture, dragging down to the previous one; both
+// wrap around the folder. Hold the fine-control key (Cmd/Ctrl) while dragging for finer steps.
+class NAMCaptureKnobControl : public IVKnobControl, public IBitmapBase
+{
+public:
+  // :param delta: number of captures to move, +1 = next, -1 = previous
+  using StepFunc = std::function<void(int)>;
+
+  NAMCaptureKnobControl(const IRECT& bounds, const IVStyle& style, IBitmap bitmap)
+  : IVKnobControl(bounds, kNoParameter, "", style.WithShowLabel(false).WithShowValue(false), false, false)
+  , IBitmapBase(bitmap)
+  {
+    mInnerPointerFrac = 0.55f;
+    mTrackSize = 2.f;
+    mLabelText = IText(12.f, PluginColors::NAM_THEMECOLOR, "Roboto-Regular", EAlign::Center, EVAlign::Middle);
+    mIndexText = IText(11.f, PluginColors::NAM_THEMECOLOR, "Roboto-Regular", EAlign::Center, EVAlign::Middle);
+    mNameText = IText(11.f, PluginColors::OFF_WHITE, "Roboto-Regular", EAlign::Center, EVAlign::Middle);
+    DisablePrompt(true);
+    SetTooltip("Turn to cycle through the captures in this folder");
+  }
+
+  void SetStepFunc(StepFunc f) { mOnStep = std::move(f); }
+
+  // Called by the plugin whenever the browser's folder or selection changes.
+  // :param numFiles: number of captures found in the current folder
+  // :param currentIndex: index of the capture currently loaded, or -1
+  // :param fileName: file name of the capture currently loaded
+  void SetBrowserState(int numFiles, int currentIndex, const std::string& fileName)
+  {
+    mNumFiles = numFiles;
+    mCurrentIndex = currentIndex;
+    mFileName = fileName;
+
+    if (mNumFiles > 1 && mCurrentIndex >= 0)
+      IControl::SetValue(static_cast<double>(mCurrentIndex) / static_cast<double>(mNumFiles - 1));
+    else
+      IControl::SetValue(0.0);
+
+    SetDisabled(mNumFiles <= 0);
+    SetTooltip(TooltipForState().c_str());
+    SetDirty(false);
+  }
+
+  bool IsHit(float x, float y) const override { return mRECT.Contains(x, y); }
+
+  void OnResize() override
+  {
+    IVKnobControl::OnResize();
+
+    mLabelBounds = IRECT(mRECT.L, mRECT.T, mRECT.R, mRECT.T + kLabelH);
+    mNameBounds = IRECT(mRECT.L, mRECT.B - kNameH, mRECT.R, mRECT.B);
+    mIndexBounds = IRECT(mRECT.L, mNameBounds.T - kIndexH, mRECT.R, mNameBounds.T);
+
+    const float knobAreaH = std::max(0.f, mIndexBounds.T - mLabelBounds.B);
+    const float size = std::min(std::min(mRECT.W(), knobAreaH), kMaxKnobSize);
+    const float knobT = mLabelBounds.B + 0.5f * (knobAreaH - size);
+    mKnobBounds = IRECT(mRECT.MW() - 0.5f * size, knobT, mRECT.MW() + 0.5f * size, knobT + size);
+
+    SetDirty(false);
+  }
+
+  void OnMouseDown(float x, float y, const IMouseMod& mod) override
+  {
+    mDragAccum = 0.0;
+    IKnobControlBase::OnMouseDown(x, y, mod);
+  }
+
+  void OnMouseDrag(float x, float y, float dX, float dY, const IMouseMod& mod) override
+  {
+    if (mNumFiles < 2)
+      return;
+
+    // Dragging up goes to the next capture (iPlug2 reports dY as positive when moving down).
+    const double pixelsPerStep = IsFineControl(mod, false) ? kPixelsPerStep * 4.0 : kPixelsPerStep;
+    mDragAccum -= static_cast<double>(dY) / pixelsPerStep;
+
+    const int steps = static_cast<int>(mDragAccum);
+    if (steps != 0)
+    {
+      mDragAccum -= static_cast<double>(steps);
+      Step(steps);
+    }
+  }
+
+  void OnMouseWheel(float x, float y, const IMouseMod& mod, float d) override
+  {
+    if (mNumFiles < 2 || d == 0.f)
+      return;
+    Step(d > 0.f ? 1 : -1);
+  }
+
+  void OnMouseDblClick(float x, float y, const IMouseMod& mod) override
+  {
+    // Jump back to the first capture in the folder.
+    if (mNumFiles > 0 && mCurrentIndex > 0)
+      Step(-mCurrentIndex);
+  }
+
+  void Draw(IGraphics& g) override
+  {
+    const float widgetRadius = 0.5f * mKnobBounds.W() * 0.73f;
+    const float cx = mKnobBounds.MW();
+    const float cy = mKnobBounds.MH();
+    const float angle = mAngle1 + (static_cast<float>(GetValue()) * (mAngle2 - mAngle1));
+
+    DrawIndicatorTrack(g, angle, cx, cy, widgetRadius);
+    g.DrawFittedBitmap(mBitmap, mKnobBounds.GetCentredInside(mKnobBounds.W(), mKnobBounds.W()));
+
+    float data[2][2];
+    RadialPoints(angle, cx, cy, mInnerPointerFrac * widgetRadius, mInnerPointerFrac * widgetRadius, 2, data);
+    g.PathCircle(data[1][0], data[1][1], 3);
+    g.PathFill(IPattern::CreateRadialGradient(data[1][0], data[1][1], 4.0f,
+                                              {{GetColor(mMouseIsOver ? kX3 : kX1), 0.f},
+                                               {GetColor(mMouseIsOver ? kX3 : kX1), 0.8f},
+                                               {COLOR_TRANSPARENT, 1.0f}}),
+               {}, &mBlend);
+    g.DrawCircle(COLOR_BLACK.WithOpacity(0.5f), data[1][0], data[1][1], 3, &mBlend);
+
+    const float dim = IsDisabled() ? 0.45f : 1.0f;
+    g.DrawText(mLabelText.WithFGColor(PluginColors::NAM_THEMECOLOR.WithOpacity(dim)), "CAPTURE", mLabelBounds);
+    g.DrawText(mIndexText.WithFGColor(PluginColors::NAM_THEMECOLOR.WithOpacity(dim)), IndexStr().c_str(),
+               mIndexBounds);
+    g.DrawText(mNameText.WithFGColor(PluginColors::OFF_WHITE.WithOpacity(dim)),
+               Ellipsize(g, NameStr(), mNameBounds, mNameText).c_str(), mNameBounds);
+  }
+
+protected:
+  IRECT GetKnobDragBounds() override { return mKnobBounds; }
+
+private:
+  static constexpr float kLabelH = 16.f;
+  static constexpr float kIndexH = 15.f;
+  static constexpr float kNameH = 18.f;
+  static constexpr float kMaxKnobSize = 64.f;
+  static constexpr double kPixelsPerStep = 14.0;
+
+  static std::string FileNameFromPath(const std::string& path)
+  {
+    if (path.empty())
+      return {};
+    WDL_String w(path.c_str());
+    return std::string(w.get_filepart());
+  }
+
+  static std::string Ellipsize(IGraphics& g, const std::string& str, const IRECT& bounds, const IText& text)
+  {
+    if (str.empty())
+      return str;
+    IRECT measure = bounds;
+    if (g.MeasureText(text, str.c_str(), measure) <= bounds.W())
+      return str;
+
+    std::string clipped = str;
+    while (clipped.size() > 1)
+    {
+      clipped.pop_back();
+      const std::string trial = clipped + "...";
+      measure = bounds;
+      if (g.MeasureText(text, trial.c_str(), measure) <= bounds.W())
+        return trial;
+    }
+    return clipped;
+  }
+
+  void Step(int delta)
+  {
+    if (mNumFiles <= 0 || delta == 0 || !mOnStep)
+      return;
+    mOnStep(delta);
+  }
+
+  std::string IndexStr() const
+  {
+    if (mNumFiles <= 0)
+      return "-/-";
+    return std::to_string(mCurrentIndex + 1) + "/" + std::to_string(mNumFiles);
+  }
+
+  std::string NameStr() const
+  {
+    if (mNumFiles <= 0)
+      return "No folder";
+    return FileNameFromPath(mFileName);
+  }
+
+  std::string TooltipForState() const
+  {
+    if (mNumFiles <= 0)
+      return "No folder loaded - pick a model folder to use the capture knob";
+    if (mNumFiles == 1)
+      return "Only one capture in this folder";
+    WDL_String full(mFileName.c_str());
+    return std::string(full.Get()) + "  (" + IndexStr() + ")";
+  }
+
+  StepFunc mOnStep;
+  int mNumFiles = 0;
+  int mCurrentIndex = -1;
+  std::string mFileName;
+  double mDragAccum = 0.0;
+  IRECT mKnobBounds;
+  IRECT mLabelBounds;
+  IRECT mIndexBounds;
+  IRECT mNameBounds;
+  IText mLabelText;
+  IText mIndexText;
+  IText mNameText;
 };
 
 class NAMSwitchControl : public IVSlideSwitchControl, public IBitmapBase
@@ -318,6 +532,29 @@ public:
         continue;
       out.emplace_back(mFiles.Get(fileIdx)->Get());
     }
+  }
+
+  // Number of captures found in the folder currently loaded in the browser.
+  int GetBrowserFileCount() const { return NItems(); }
+
+  // Index of the selected capture, or -1 if nothing is selected yet.
+  int GetBrowserSelectedIndex() const { return mSelectedItemIndex; }
+
+  // Full path of the selected capture (empty string if nothing is selected).
+  void GetBrowserSelectedPath(WDL_String& out) const { GetSelectedFile(out); }
+
+  // Move the browser selection by :param delta captures, wrapping around the folder,
+  // and load whatever ends up selected. Used by the capture knob.
+  void StepSelectedFile(int delta)
+  {
+    const int n = NItems();
+    if (n <= 0 || delta == 0)
+      return;
+
+    int idx = mSelectedItemIndex < 0 ? 0 : mSelectedItemIndex;
+    idx = ((idx + delta) % n + n) % n;
+    mSelectedItemIndex = idx;
+    LoadFileAtCurrentIndex(NAMFileLoadSource::ExistingBrowserSelection);
   }
 
   void LoadAbsoluteFile(const char* absolutePath)

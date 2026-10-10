@@ -14,6 +14,14 @@
 #include "IPlug_include_in_plug_hdr.h"
 #include "ISender.h"
 
+namespace iplug
+{
+namespace igraphics
+{
+class IGraphics;
+}
+} // namespace iplug
+
 
 const int kNumPresets = 1;
 // The plugin is mono inside
@@ -66,6 +74,7 @@ enum ECtrlTags
   kCtrlTagSlimOverlayBackdrop,
   kCtrlTagSlimKnob,
   kCtrlTagModelListPanel,
+  kCtrlTagCaptureKnob,
   kNumCtrlTags
 };
 
@@ -267,6 +276,11 @@ private:
 
   // Update all controls that depend on a model
   void _UpdateControlsFromModel();
+
+  // Keep the model list panel and the capture knob in sync with the model file browser.
+  // Loads nothing; it only reads the browser's current folder/selection.
+  // :param pGraphics: the UI to update. Pass nullptr to use GetUI().
+  void _RefreshModelBrowserUI(iplug::igraphics::IGraphics* pGraphics = nullptr);
 
   // Make sure that the latency is reported correctly.
   void _UpdateLatency();

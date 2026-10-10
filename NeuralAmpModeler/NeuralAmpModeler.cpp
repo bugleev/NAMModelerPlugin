@@ -235,21 +235,7 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     // Getting started page listing additional resources
     const char* const getUrl = "https://github.com/bugleev/NAMModelerPlugin";
 
-    auto refreshModelList = [pGraphics]() {
-      auto* browserCtrl = pGraphics->GetControlWithTag(kCtrlTagModelFileBrowser);
-      auto* listCtrl = pGraphics->GetControlWithTag(kCtrlTagModelListPanel);
-      if (!browserCtrl || !listCtrl)
-        return;
-      auto* browser = browserCtrl->As<NAMFileBrowserControl>();
-      auto* list = listCtrl->As<NAMModelListPanel>();
-      if (!browser || !list)
-        return;
-      std::vector<std::string> files;
-      browser->GetBrowserFilePaths(files);
-      WDL_String selected;
-      browser->GetSelectedFile(selected);
-      list->SetDirectoryFiles(files, selected.Get());
-    };
+    auto refreshModelList = [this, pGraphics]() { _RefreshModelBrowserUI(pGraphics); };
 
     auto loadModelCompletionHandlerWithRefresh = [loadModelCompletionHandler, refreshModelList](const WDL_String& fileName,
                                                                                                 const WDL_String& path) {
@@ -344,6 +330,22 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
       if (auto* browser = pGraphics->GetControlWithTag(kCtrlTagModelFileBrowser)->As<NAMFileBrowserControl>())
         browser->PromptToBrowse();
     });
+
+    // Capture knob: cycles through the captures in the folder the browser has loaded.
+    // It sits to the left of the model file row, clear of the input meter and the model icon.
+    const auto captureKnobArea = IRECT(56.f, 280.f, 158.f, 392.f);
+    auto* captureKnob =
+      pGraphics
+        ->AttachControl(new NAMCaptureKnobControl(captureKnobArea, style, knobBackgroundBitmap), kCtrlTagCaptureKnob)
+        ->As<NAMCaptureKnobControl>();
+    captureKnob->SetStepFunc([this, pGraphics](int delta) {
+      if (auto* browser = pGraphics->GetControlWithTag(kCtrlTagModelFileBrowser)->As<NAMFileBrowserControl>())
+      {
+        browser->StepSelectedFile(delta);
+        _RefreshModelBrowserUI(pGraphics);
+      }
+    });
+
     refreshModelList();
 
     const auto slimKnobArea = mainBounds.GetCentredInside(100.f, NAM_KNOB_HEIGHT + 24.f);
@@ -556,17 +558,7 @@ void NeuralAmpModeler::OnUIOpen()
 
   if (auto* pGraphics = GetUI())
   {
-    if (auto* browser = pGraphics->GetControlWithTag(kCtrlTagModelFileBrowser)->As<NAMFileBrowserControl>())
-    {
-      if (auto* list = pGraphics->GetControlWithTag(kCtrlTagModelListPanel)->As<NAMModelListPanel>())
-      {
-        std::vector<std::string> files;
-        browser->GetBrowserFilePaths(files);
-        WDL_String selected;
-        browser->GetSelectedFile(selected);
-        list->SetDirectoryFiles(files, selected.Get());
-      }
-    }
+    _RefreshModelBrowserUI(pGraphics);
   }
 }
 
@@ -1023,6 +1015,42 @@ void NeuralAmpModeler::_UpdateControlsFromModel()
     {
       const bool show = mModel->GetSlimmableModel() != nullptr;
       pSlimIcon->Hide(!show);
+    }
+  }
+}
+
+// Keep the model list panel and the capture knob in sync with the model file browser.
+void NeuralAmpModeler::_RefreshModelBrowserUI(iplug::igraphics::IGraphics* pGraphics)
+{
+  if (pGraphics == nullptr)
+    pGraphics = GetUI();
+  if (pGraphics == nullptr)
+    return;
+
+  auto* browserCtrl = pGraphics->GetControlWithTag(kCtrlTagModelFileBrowser);
+  auto* browser = browserCtrl ? browserCtrl->As<NAMFileBrowserControl>() : nullptr;
+  if (browser == nullptr)
+    return;
+
+  std::vector<std::string> files;
+  browser->GetBrowserFilePaths(files);
+  WDL_String selected;
+  browser->GetSelectedFile(selected);
+
+  if (auto* listCtrl = pGraphics->GetControlWithTag(kCtrlTagModelListPanel))
+  {
+    if (auto* list = listCtrl->As<NAMModelListPanel>())
+      list->SetDirectoryFiles(files, selected.Get());
+  }
+
+  if (auto* knobCtrl = pGraphics->GetControlWithTag(kCtrlTagCaptureKnob))
+  {
+    if (auto* knob = knobCtrl->As<NAMCaptureKnobControl>())
+    {
+      const WDL_String selectedPath(selected.Get());
+      const char* fileName = selectedPath.get_filepart();
+      knob->SetBrowserState(static_cast<int>(files.size()), browser->GetBrowserSelectedIndex(),
+                            fileName != nullptr ? std::string(fileName) : std::string());
     }
   }
 }

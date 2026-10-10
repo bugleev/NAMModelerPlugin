@@ -1,6 +1,7 @@
 Gateway Modded changelog
 https://github.com/bugleev/NAMModelerPlugin
 
+10/10/2026 - v0.12.0 CAPTURE knob: drag up/down (or mouse wheel) to cycle through the captures in the current folder; double-click returns to the first capture
 08/12/2026 - v0.11.0 GATEWAY MODDED title; model list folder row (icon/name/count/favorites); compact header
 08/12/2026 - v0.10.2 Automated tag releases (Windows + macOS); Apple-only favorites link guard
 08/12/2026 - v0.10.1 Gateway Modded rename; favorites filter scoped to current folder; empty-state folder browse; clearer list text
