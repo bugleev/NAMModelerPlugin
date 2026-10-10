@@ -3,7 +3,11 @@
 Fork of [sdatkinson/NeuralAmpModelerPlugin](https://github.com/sdatkinson/NeuralAmpModelerPlugin) — a VST3 / standalone app for loading [Neural Amp Modeler](https://github.com/sdatkinson/neural-amp-modeler) `.nam` models, built with [iPlug2](https://iplug2.github.io).
 
 **Publisher:** NAMenjoyer  
-**Current version: 0.11.0**
+**Current version: 0.12.0**
+
+## What's new in 0.12.0
+
+- **CAPTURE knob** (left of the model row): cycles through the `.nam` captures in the folder that is currently loaded in the model browser. Drag up/down or use the mouse wheel to step, hold Cmd/Ctrl for finer steps, double-click to jump back to the first capture. The knob shows `index/total` and the capture file name, and is greyed out with *No folder* until a folder with captures is loaded. It is a UI-only control (no plugin parameter) and loads through the same path as clicking a row in the model list.
 
 ## What's new in 0.11.0
 
