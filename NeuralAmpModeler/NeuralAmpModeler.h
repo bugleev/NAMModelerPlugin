@@ -1,5 +1,12 @@
 #pragma once
 
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
+
 #include "../AudioDSPTools/dsp/ImpulseResponse.h"
 #include "../AudioDSPTools/dsp/NoiseGate.h"
 #include "../AudioDSPTools/dsp/dsp.h"
@@ -13,6 +20,14 @@
 
 #include "IPlug_include_in_plug_hdr.h"
 #include "ISender.h"
+
+namespace iplug
+{
+namespace igraphics
+{
+class IGraphics;
+}
+} // namespace iplug
 
 
 const int kNumPresets = 1;
@@ -47,8 +62,16 @@ enum EParams
   kInputCalibrationLevel,
   kOutputMode,
   kSlim,
+  // Capture selection: index of the .nam file that is loaded, within the folder it came from.
+  // It is a real (stepped) parameter so that a DAW can automate it or MIDI-learn it. Kept at
+  // the end of the list so that the indices of the parameters above never change.
+  kCaptureIndex,
   kNumParams
 };
+
+// Upper bound of the capture parameter's range. Folders with fewer captures simply use the
+// lower part of the range; the knob's arc is scaled to the number of captures in the folder.
+constexpr int kMaxCaptureCount = 128;
 
 const int numKnobs = 6;
 
@@ -65,6 +88,7 @@ enum ECtrlTags
   kCtrlTagSlimmableIcon,
   kCtrlTagSlimOverlayBackdrop,
   kCtrlTagSlimKnob,
+  kCtrlTagCaptureKnob,
   kNumCtrlTags
 };
 
@@ -209,6 +233,7 @@ public:
   bool OnHostRequestingSupportedViewConfiguration(int width, int height) override { return true; }
 
   void OnParamChange(int paramIdx) override;
+  void OnParamChange(int paramIdx, iplug::EParamSource source, int sampleOffset = -1) override;
   void OnParamChangeUI(int paramIdx, iplug::EParamSource source) override;
   bool OnMessage(int msgTag, int ctrlTag, int dataSize, const void* pData) override;
 
@@ -230,7 +255,8 @@ private:
   void _InitToneStack();
   // Loads a NAM model and stores it to mStagedNAM
   // Returns an empty string on success, or an error message on failure.
-  std::string _StageModel(const WDL_String& dspFile);
+  // :param notifyUI: pass false when calling from a non-UI thread (the UI is updated on idle instead)
+  std::string _StageModel(const WDL_String& dspFile, bool notifyUI = true);
   // Loads an IR and stores it to mStagedIR.
   // Return status code so that error messages can be relayed if
   // it wasn't successful.
@@ -266,6 +292,53 @@ private:
 
   // Update all controls that depend on a model
   void _UpdateControlsFromModel();
+
+  // ---- Capture switching (the capture knob) --------------------------------
+  // The captures are the .nam files in the folder that the loaded model came from. The list is
+  // owned by the plugin rather than by the file browser so that the capture parameter can be
+  // driven by the host (automation, MIDI learn) even when no editor is open.
+  // Rebuilds mCaptureFiles from the folder holding :param modelPath and updates mCaptureIndex.
+  void _RebuildCaptureList(const WDL_String& modelPath);
+  // Index (into mCaptureFiles) that the capture parameter currently asks for.
+  int _CaptureIndexFromParam() const;
+  // Loads mCaptureFiles[index]. notifyUI must only be true on the UI thread.
+  // Returns an empty string on success, or an error message on failure.
+  std::string _LoadCaptureAtIndex(int index, bool notifyUI);
+  // Called from OnParamChange() for kCaptureIndex. Host / preset changes are handed to the worker
+  // thread so that no file I/O or allocation happens on the audio thread.
+  void _HandleCaptureParamChange(iplug::EParamSource source);
+  // Queues a load of the capture that the parameter currently points at.
+  void _RequestCaptureLoadFromParam();
+  // Queues a load of mCaptureFiles[index] on the worker thread.
+  void _RequestCaptureLoadFromIndex(int index);
+  // Loads the capture the parameter points at, right now, on the calling (UI) thread.
+  // Returns an empty string on success, or an error message on failure.
+  std::string _LoadCaptureFromParamOnUIThread();
+  // Worker thread body: waits for requests and stages the model without touching the UI.
+  void _CaptureWorkerLoop();
+  // Pushes the capture list state (count / index / file name) into the knob control.
+  void _UpdateCaptureKnobUI(iplug::igraphics::IGraphics* pGraphics);
+  // Makes the parameter agree with mCaptureIndex without triggering another load.
+  // :param notifyUI: only true when called from the UI thread
+  void _SyncCaptureParamToIndex(bool notifyUI);
+
+  // Capture list state. Guarded by mCaptureMutex.
+  std::vector<std::string> mCaptureFiles;
+  int mCaptureIndex = -1;
+  int mPendingCaptureIndex = -1;
+  // Last index a load was requested for. Hosts can send the same parameter value over and over,
+  // so requests that would load what is already (being) loaded are dropped.
+  int mRequestedCaptureIndex = -1;
+  std::mutex mCaptureMutex;
+  // Wake-up for the capture worker thread.
+  std::condition_variable mCaptureCv;
+  bool mCaptureWorkerShouldExit = false;
+  std::thread mCaptureWorker;
+  // Set by the worker after it stages a model; picked up by OnIdle() on the UI thread.
+  std::atomic<bool> mCaptureUiNeedsRefresh{false};
+  // Guards mStagedModel between the (UI or worker) thread that stages a model and the audio
+  // thread that moves it into mModel.
+  std::mutex mStagingMutex;
 
   // Make sure that the latency is reported correctly.
   void _UpdateLatency();
