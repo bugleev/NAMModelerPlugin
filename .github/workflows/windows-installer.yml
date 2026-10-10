@@ -1,0 +1,87 @@
+name: Build Windows Installer
+
+# Builds the Inno Setup installer (registers the VST3 and installs the standalone app) on a
+# Windows runner. Manual test builds only - nothing is published.
+on:
+  workflow_dispatch:
+
+env:
+  PROJECT_NAME: NeuralAmpModeler
+
+jobs:
+  build-windows-installer:
+    name: Windows installer (VST3 + standalone)
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+          architecture: x64
+
+      - name: Locate or install Inno Setup
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
+          )
+          $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $found) {
+            Write-Host "Installing Inno Setup via Chocolatey..."
+            choco install innosetup --no-progress --yes
+            if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1641 -and $LASTEXITCODE -ne 3010) {
+              throw "choco install innosetup failed with $LASTEXITCODE"
+            }
+            $found = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $found) { throw "ISCC.exe not found after install" }
+          Write-Host "Using ISCC at: $found"
+          Split-Path -Parent $found | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Get VST3 SDK
+        shell: bash
+        run: |
+          cd iPlug2/Dependencies/IPlug
+          ./download-iplug-sdks.sh
+
+      - name: Get Prebuilt Libs (Windows)
+        shell: bash
+        run: |
+          cd iPlug2/Dependencies
+          ./download-prebuilt-libs.sh win
+
+      - name: Build installer (VST3 + standalone)
+        shell: pwsh
+        run: |
+          cd ${{ env.PROJECT_NAME }}\scripts
+          .\makedist-win.bat full installer
+
+      - name: List outputs
+        shell: pwsh
+        run: |
+          Get-ChildItem ${{ env.PROJECT_NAME }}\build-win\installer
+          Get-ChildItem ${{ env.PROJECT_NAME }}\build-win\out
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeuralAmpModelerCapture-Installer
+          path: ${{ env.PROJECT_NAME }}/build-win/installer/*Installer.exe
+          if-no-files-found: error
+
+      - name: Upload installer zip (installer + docs)
+        uses: actions/upload-artifact@v4
+        with:
+          name: NeuralAmpModelerCapture-Installer-zip
+          path: ${{ env.PROJECT_NAME }}/build-win/out/*.zip
+          if-no-files-found: warn

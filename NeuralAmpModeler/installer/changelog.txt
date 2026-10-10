@@ -24,3 +24,5 @@ https://github.com/sdatkinson/NeuralAmpModelerPlugin
 12/20/2024 - v0.7.13
 04/29/2026 - v0.7.14
 06/02/2026 - v0.7.15
+10/10/2026 - v0.8.4 UI: taller switch band, capture knob moved under the input knob (no more overlap)
+10/10/2026 - v0.8.3 Own plug-in identity (NeuralAmpModelerCapture.vst3 / unique ID NCap); capture knob: one step per .nam file in the current folder, host-automatable

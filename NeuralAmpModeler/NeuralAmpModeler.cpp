@@ -1,5 +1,6 @@
 #include <algorithm> // std::clamp, std::min
-#include <cmath> // pow
+#include <cctype> // std::tolower
+#include <cmath> // pow, std::lround
 #include <filesystem>
 #include <iostream>
 #include <utility>
@@ -94,8 +95,48 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
   GetParam(kInputCalibrationLevel)
     ->InitDouble(kInputCalibrationLevelParamName.c_str(), kDefaultInputCalibrationLevel, -60.0, 60.0, 0.1, "dBu");
   GetParam(kSlim)->InitDouble("Slim", 0.0, 0.0, 1.0, 0.01);
+  // Capture selection. The parameter's range is fixed, because hosts cache parameter ranges when
+  // the plug-in is loaded; the plugin maps its 0..1 value onto as many positions as there are
+  // .nam files in the folder, so one step = one capture and a full sweep covers the whole folder.
+  GetParam(kCaptureIndex)->InitDouble("Capture", 0.0, 0.0, static_cast<double>(kMaxCaptureCount - 1), 1.0);
+  GetParam(kCaptureIndex)->SetDisplayFunc([this](double value, WDL_String& str) {
+    int count = 0;
+    std::vector<std::string> files;
+    {
+      std::lock_guard<std::mutex> lock(mCaptureMutex);
+      count = static_cast<int>(mCaptureFiles.size());
+      files = mCaptureFiles;
+    }
+
+    if (count < 1)
+    {
+      str.Set("No captures");
+      return;
+    }
+
+    const double normalized =
+      kMaxCaptureCount > 1 ? std::clamp(value, 0.0, static_cast<double>(kMaxCaptureCount - 1))
+                                / static_cast<double>(kMaxCaptureCount - 1)
+                          : 0.0;
+    int index = static_cast<int>(std::lround(normalized * static_cast<double>(count - 1)));
+    index = std::clamp(index, 0, count - 1);
+
+    std::string display = std::to_string(index + 1) + "/" + std::to_string(count);
+    if (index < static_cast<int>(files.size()))
+    {
+      WDL_String fileName(files[static_cast<size_t>(index)].c_str());
+      const char* part = fileName.get_filepart();
+      if (part != nullptr && part[0] != 0)
+        display += " " + std::string(part);
+    }
+    str.Set(display.c_str());
+  });
 
   mNoiseGateTrigger.AddListener(&mNoiseGateGain);
+
+  // The capture worker stages models for capture switches that come from the host, so that no
+  // file I/O or allocation happens on the audio thread.
+  mCaptureWorker = std::thread(&NeuralAmpModeler::_CaptureWorkerLoop, this);
 
   mMakeGraphicsFunc = [&]() {
 
@@ -158,9 +199,18 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
     const auto trebleKnobArea = knobsArea.GetGridCell(0, kToneTreble, 1, numKnobs).GetPadded(-singleKnobPad);
     const auto outputKnobArea = knobsArea.GetGridCell(0, kOutputLevel, 1, numKnobs).GetPadded(-singleKnobPad);
 
-    const auto ngToggleArea =
-      noiseGateArea.GetVShifted(noiseGateArea.H()).SubRectVertical(2, 0).GetReducedFromTop(10.0f);
-    const auto eqToggleArea = midKnobArea.GetVShifted(midKnobArea.H()).SubRectVertical(2, 0).GetReducedFromTop(10.0f);
+    // The band below the knob row: it holds the Noise Gate / EQ switches and the capture knob.
+    // It is made much taller than the switches need, so that the capture knob can sit under the
+    // input knob without touching the switches, the input meter or the model row.
+    const auto switchRowHeight = 145.0f;
+    const auto switchRowArea = IRECT(knobsArea.L, knobsArea.B, knobsArea.R, knobsArea.B + switchRowHeight);
+    const auto ngToggleArea = switchRowArea.GetGridCell(0, kNoiseGateThreshold, 1, numKnobs)
+                                .GetReducedFromTop(10.0f)
+                                .GetFromTop(NAM_SWTICH_HEIGHT);
+    const auto eqToggleArea =
+      switchRowArea.GetGridCell(0, kToneMid, 1, numKnobs).GetReducedFromTop(10.0f).GetFromTop(NAM_SWTICH_HEIGHT);
+    const auto captureKnobArea = IRECT(switchRowArea.L, switchRowArea.T + 4.0f, switchRowArea.L + 78.0f,
+                                       switchRowArea.B - 8.0f);
 
     // Areas for model and IR
     const auto fileWidth = 200.0f;
@@ -304,6 +354,13 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
       ->AttachControl(new NAMKnobControl(slimKnobArea, kSlim, "Slim", style, knobBackgroundBitmap), kCtrlTagSlimKnob)
       ->Hide(true);
 
+    // Capture knob: steps through the .nam files in the folder the loaded model came from.
+    // It sits in the switch band, directly under the input knob. It is linked to the kCaptureIndex
+    // parameter, so the host can automate it / MIDI-learn it like any other knob.
+    pGraphics->AttachControl(new NAMCaptureKnobControl(captureKnobArea, kCaptureIndex, style, knobBackgroundBitmap),
+                             kCtrlTagCaptureKnob);
+    _UpdateCaptureKnobUI(pGraphics);
+
     pGraphics->ForAllControlsFunc([](IControl* pControl) {
       pControl->SetMouseEventsWhenDisabled(true);
       pControl->SetMouseOverWhenDisabled(true);
@@ -316,6 +373,15 @@ NeuralAmpModeler::NeuralAmpModeler(const InstanceInfo& info)
 
 NeuralAmpModeler::~NeuralAmpModeler()
 {
+  // Stop the capture worker before anything it touches is torn down.
+  {
+    std::lock_guard<std::mutex> lock(mCaptureMutex);
+    mCaptureWorkerShouldExit = true;
+  }
+  mCaptureCv.notify_all();
+  if (mCaptureWorker.joinable())
+    mCaptureWorker.join();
+
   _DeallocateIOPointers();
 }
 
@@ -441,8 +507,30 @@ void NeuralAmpModeler::OnIdle()
         p->Hide(true);
       if (auto* p = pGraphics->GetControlWithTag(kCtrlTagSlimKnob))
         p->Hide(true);
+      // The model (and with it the capture list) is gone.
+      {
+        std::lock_guard<std::mutex> lock(mCaptureMutex);
+        mCaptureFiles.clear();
+        mCaptureIndex = -1;
+      }
+      _SyncCaptureParamToIndex(true);
+      _UpdateCaptureKnobUI(pGraphics);
       pGraphics->SetAllControlsDirty();
       mModelCleared = false;
+    }
+  }
+
+  // A capture was switched by the host (automation / preset recall) on the worker thread, or a
+  // new model was loaded from the file browser: bring the browser label and the knob up to date.
+  if (auto* pGraphics = GetUI())
+  {
+    if (mCaptureUiNeedsRefresh.exchange(false))
+    {
+      if (mNAMPath.GetLength())
+        SendControlMsgFromDelegate(kCtrlTagModelFileBrowser, kMsgTagLoadedModel, mNAMPath.GetLength(),
+                                   mNAMPath.Get());
+      _UpdateCaptureKnobUI(pGraphics);
+      pGraphics->SetAllControlsDirty();
     }
   }
 }
@@ -489,7 +577,12 @@ void NeuralAmpModeler::OnUIOpen()
     SendControlMsgFromDelegate(kCtrlTagModelFileBrowser, kMsgTagLoadedModel, mNAMPath.GetLength(), mNAMPath.Get());
     // If it's not loaded yet, then mark as failed.
     // If it's yet to be loaded, then the completion handler will set us straight once it runs.
-    if (mModel == nullptr && mStagedModel == nullptr)
+    bool modelIsStaged = false;
+    {
+      std::lock_guard<std::mutex> lock(mStagingMutex);
+      modelIsStaged = mStagedModel != nullptr;
+    }
+    if (mModel == nullptr && !modelIsStaged)
       SendControlMsgFromDelegate(kCtrlTagModelFileBrowser, kMsgTagLoadFailed);
   }
 
@@ -504,6 +597,13 @@ void NeuralAmpModeler::OnUIOpen()
   {
     _UpdateControlsFromModel();
   }
+
+  // Bring the capture knob up to date for whatever model is loaded (the capture list may have
+  // been rebuilt by the worker thread while the editor was closed).
+  if (mNAMPath.GetLength())
+    _RebuildCaptureList(mNAMPath);
+  if (auto* pGraphics = GetUI())
+    _UpdateCaptureKnobUI(pGraphics);
 }
 
 void NeuralAmpModeler::OnParamChange(int paramIdx)
@@ -526,8 +626,38 @@ void NeuralAmpModeler::OnParamChange(int paramIdx)
   }
 }
 
+void NeuralAmpModeler::OnParamChange(int paramIdx, EParamSource source, int sampleOffset)
+{
+  if (paramIdx == kCaptureIndex)
+  {
+    // Turning the knob is handled on the UI thread in OnParamChangeUI(); everything else
+    // (host automation, preset recall, reset) comes through here.
+    _HandleCaptureParamChange(source);
+    return;
+  }
+
+  OnParamChange(paramIdx);
+}
+
 void NeuralAmpModeler::OnParamChangeUI(int paramIdx, EParamSource source)
 {
+  if (paramIdx == kCaptureIndex)
+  {
+    // The user turned the capture knob: load the capture now, on the UI thread, exactly like
+    // clicking a model in the file browser does.
+    if (source == EParamSource::kUI && GetUI() != nullptr)
+    {
+      const std::string error = _LoadCaptureFromParamOnUIThread();
+      if (!error.empty())
+      {
+        std::stringstream message;
+        message << "Failed to load NAM model. Message:\n\n" << error;
+        _ShowMessageBox(GetUI(), message.str().c_str(), "Failed to load model!", kMB_OK);
+      }
+    }
+    return;
+  }
+
   if (auto pGraphics = GetUI())
   {
     bool active = GetParam(paramIdx)->Bool();
@@ -612,14 +742,17 @@ void NeuralAmpModeler::_ApplyDSPStaging()
     mShouldRemoveIR = false;
   }
   // Move things from staged to live
-  if (mStagedModel != nullptr)
   {
-    mModel = std::move(mStagedModel);
-    mStagedModel = nullptr;
-    mNewModelLoadedInDSP = true;
-    _UpdateLatency();
-    _SetInputGain();
-    _SetOutputGain();
+    std::lock_guard<std::mutex> lock(mStagingMutex);
+    if (mStagedModel != nullptr)
+    {
+      mModel = std::move(mStagedModel);
+      mStagedModel = nullptr;
+      mNewModelLoadedInDSP = true;
+      _UpdateLatency();
+      _SetInputGain();
+      _SetOutputGain();
+    }
   }
   if (mStagedIR != nullptr)
   {
@@ -657,13 +790,17 @@ void NeuralAmpModeler::_FallbackDSP(iplug::sample** inputs, iplug::sample** outp
 void NeuralAmpModeler::_ResetModelAndIR(const double sampleRate, const int maxBlockSize)
 {
   // Model
-  if (mStagedModel != nullptr)
   {
-    mStagedModel->Reset(sampleRate, maxBlockSize);
-  }
-  else if (mModel != nullptr)
-  {
-    mModel->Reset(sampleRate, maxBlockSize);
+    // The capture worker may be staging a model at the same time.
+    std::lock_guard<std::mutex> lock(mStagingMutex);
+    if (mStagedModel != nullptr)
+    {
+      mStagedModel->Reset(sampleRate, maxBlockSize);
+    }
+    else if (mModel != nullptr)
+    {
+      mModel->Reset(sampleRate, maxBlockSize);
+    }
   }
 
   // IR
@@ -739,10 +876,14 @@ void NeuralAmpModeler::_ApplySlimParamToLoadedNAMs()
       s->SetSlimmableSize(v);
   };
   apply(mModel.get());
-  apply(mStagedModel.get());
+  {
+    // The capture worker may be staging a model at the same time.
+    std::lock_guard<std::mutex> lock(mStagingMutex);
+    apply(mStagedModel.get());
+  }
 }
 
-std::string NeuralAmpModeler::_StageModel(const WDL_String& modelPath)
+std::string NeuralAmpModeler::_StageModel(const WDL_String& modelPath, bool notifyUI)
 {
   WDL_String previousNAMPath = mNAMPath;
   try
@@ -767,17 +908,35 @@ std::string NeuralAmpModeler::_StageModel(const WDL_String& modelPath)
     {
       slimmable->SetSlimmableSize(GetParam(kSlim)->Value());
     }
-    mStagedModel = std::move(temp);
+    {
+      // The audio thread picks this up in _ApplyDSPStaging(), which may be running right now if
+      // this call comes from the capture worker thread.
+      std::lock_guard<std::mutex> lock(mStagingMutex);
+      mStagedModel = std::move(temp);
+    }
     mNAMPath = modelPath;
-    SendControlMsgFromDelegate(kCtrlTagModelFileBrowser, kMsgTagLoadedModel, mNAMPath.GetLength(), mNAMPath.Get());
+    // Keep the capture list (and the parameter) consistent with whatever we just loaded.
+    _RebuildCaptureList(mNAMPath);
+    _SyncCaptureParamToIndex(notifyUI);
+    mCaptureUiNeedsRefresh = true;
+    if (notifyUI)
+    {
+      SendControlMsgFromDelegate(kCtrlTagModelFileBrowser, kMsgTagLoadedModel, mNAMPath.GetLength(), mNAMPath.Get());
+      if (auto* pGraphics = GetUI())
+        _UpdateCaptureKnobUI(pGraphics);
+    }
   }
   catch (std::runtime_error& e)
   {
-    SendControlMsgFromDelegate(kCtrlTagModelFileBrowser, kMsgTagLoadFailed);
+    if (notifyUI)
+      SendControlMsgFromDelegate(kCtrlTagModelFileBrowser, kMsgTagLoadFailed);
 
-    if (mStagedModel != nullptr)
     {
-      mStagedModel = nullptr;
+      std::lock_guard<std::mutex> lock(mStagingMutex);
+      if (mStagedModel != nullptr)
+      {
+        mStagedModel = nullptr;
+      }
     }
     mNAMPath = previousNAMPath;
     std::cerr << "Failed to read DSP module" << std::endl;
@@ -960,6 +1119,295 @@ void NeuralAmpModeler::_UpdateControlsFromModel()
       const bool show = mModel->GetSlimmableModel() != nullptr;
       pSlimIcon->Hide(!show);
     }
+  }
+}
+
+// ---- Capture switching (the capture knob) ==================================
+// The captures are the .nam files in the folder that the loaded model came from. The list lives
+// here rather than in the file browser so that the kCaptureIndex parameter can be driven by the
+// host (automation, MIDI learn, preset recall) even when no editor is open.
+
+namespace
+{
+std::string ToLowerCopy(std::string s)
+{
+  std::transform(s.begin(), s.end(), s.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  return s;
+}
+
+// std::filesystem::path::u8string() returns std::string before C++20 and std::u8string after it.
+std::string PathToUtf8(const std::filesystem::path& path)
+{
+#if defined(__cpp_char8_t)
+  const std::u8string utf8 = path.u8string();
+  return std::string(utf8.begin(), utf8.end());
+#else
+  return path.u8string();
+#endif
+}
+} // namespace
+
+void NeuralAmpModeler::_RebuildCaptureList(const WDL_String& modelPath)
+{
+  std::vector<std::string> files;
+  const char* modelPathCStr = modelPath.Get();
+  const std::string modelPathStr = modelPathCStr != nullptr ? std::string(modelPathCStr) : std::string();
+
+  if (!modelPathStr.empty())
+  {
+    WDL_String folder(modelPathStr.c_str());
+    folder.remove_filepart(true); // keep the trailing separator so that the path below joins up
+
+    std::error_code ec;
+    const std::filesystem::path folderPath = std::filesystem::u8path(folder.Get());
+    std::filesystem::directory_iterator it(folderPath, ec);
+    const std::filesystem::directory_iterator end;
+    while (!ec && it != end)
+    {
+      const std::filesystem::directory_entry& entry = *it;
+
+      std::error_code typeEc;
+      const bool isFile = entry.is_regular_file(typeEc);
+      if (!typeEc && isFile && ToLowerCopy(PathToUtf8(entry.path().extension())) == ".nam")
+        files.push_back(PathToUtf8(entry.path()));
+
+      it.increment(ec);
+    }
+  }
+
+  // Predictable order for stepping through the folder (the file browser uses raw directory
+  // order, which differs between platforms).
+  std::sort(files.begin(), files.end(),
+            [](const std::string& a, const std::string& b) { return ToLowerCopy(a) < ToLowerCopy(b); });
+
+  int index = -1;
+  {
+    std::lock_guard<std::mutex> lock(mCaptureMutex);
+    mCaptureFiles = std::move(files);
+    const std::string needle = ToLowerCopy(modelPathStr);
+    for (size_t i = 0; i < mCaptureFiles.size(); ++i)
+    {
+      if (ToLowerCopy(mCaptureFiles[i]) == needle)
+      {
+        index = static_cast<int>(i);
+        break;
+      }
+    }
+    mCaptureIndex = index;
+    mRequestedCaptureIndex = index;
+  }
+
+  mCaptureUiNeedsRefresh = true;
+}
+
+int NeuralAmpModeler::_CaptureIndexFromParam()
+{
+  const IParam* pParam = GetParam(kCaptureIndex);
+  if (pParam == nullptr)
+    return 0;
+
+  int count = 0;
+  {
+    std::lock_guard<std::mutex> lock(mCaptureMutex);
+    count = static_cast<int>(mCaptureFiles.size());
+  }
+
+  if (count <= 1)
+    return 0;
+
+  // The parameter's own range is fixed at 0..kMaxCaptureCount-1, so the host's 0..1 value is
+  // stretched over exactly as many positions as there are captures in the folder: a full sweep of
+  // the parameter (or of a DAW macro mapped to it) visits every capture once, and nothing in
+  // between.
+  const double normalized = std::clamp(pParam->GetNormalized(), 0.0, 1.0);
+  const int index = static_cast<int>(std::lround(normalized * static_cast<double>(count - 1)));
+  return std::clamp(index, 0, count - 1);
+}
+
+std::string NeuralAmpModeler::_LoadCaptureAtIndex(int index, bool notifyUI)
+{
+  std::string path;
+  {
+    std::lock_guard<std::mutex> lock(mCaptureMutex);
+    if (index < 0 || index >= static_cast<int>(mCaptureFiles.size()))
+      return "There is no capture at index " + std::to_string(index);
+    path = mCaptureFiles[static_cast<size_t>(index)];
+  }
+
+  WDL_String modelPath(path.c_str());
+  return _StageModel(modelPath, notifyUI);
+}
+
+void NeuralAmpModeler::_RequestCaptureLoadFromIndex(int index)
+{
+  {
+    std::lock_guard<std::mutex> lock(mCaptureMutex);
+    // Hosts resend parameter values constantly; do not reload what is loaded or already queued.
+    if (index == mPendingCaptureIndex || index == mRequestedCaptureIndex)
+      return;
+    mPendingCaptureIndex = index;
+    mRequestedCaptureIndex = index;
+  }
+  mCaptureCv.notify_one();
+}
+
+void NeuralAmpModeler::_RequestCaptureLoadFromParam()
+{
+  int index = _CaptureIndexFromParam();
+  {
+    // Folder with fewer captures than the parameter's range: clamp to the last one instead of
+    // failing to load.
+    std::lock_guard<std::mutex> lock(mCaptureMutex);
+    if (!mCaptureFiles.empty() && index >= static_cast<int>(mCaptureFiles.size()))
+      index = static_cast<int>(mCaptureFiles.size()) - 1;
+  }
+  _RequestCaptureLoadFromIndex(index);
+}
+
+std::string NeuralAmpModeler::_LoadCaptureFromParamOnUIThread()
+{
+  int index = _CaptureIndexFromParam();
+  {
+    std::lock_guard<std::mutex> lock(mCaptureMutex);
+    if (!mCaptureFiles.empty() && index >= static_cast<int>(mCaptureFiles.size()))
+      index = static_cast<int>(mCaptureFiles.size()) - 1;
+    if (index == mCaptureIndex)
+      return ""; // already the loaded capture
+  }
+
+  const std::string error = _LoadCaptureAtIndex(index, true);
+  if (!error.empty())
+  {
+    std::cerr << "Failed to load capture at index " << index << ":" << std::endl;
+    std::cerr << error << std::endl;
+  }
+
+  _SyncCaptureParamToIndex(true);
+  if (auto* pGraphics = GetUI())
+  {
+    _UpdateCaptureKnobUI(pGraphics);
+    pGraphics->SetAllControlsDirty();
+  }
+  return error;
+}
+
+void NeuralAmpModeler::_HandleCaptureParamChange(EParamSource source)
+{
+  if (source == EParamSource::kPresetRecall || source == EParamSource::kReset
+      || source == EParamSource::kRecompile)
+  {
+    // Restoring a session or preset: the saved model path wins over the parameter, which may
+    // still be at its default if the state comes from a version without the capture knob.
+    if (mNAMPath.GetLength())
+    {
+      _RebuildCaptureList(mNAMPath); // also sets mCaptureIndex from the path
+      _SyncCaptureParamToIndex(false);
+      int index = -1;
+      {
+        std::lock_guard<std::mutex> lock(mCaptureMutex);
+        index = mCaptureIndex;
+        mRequestedCaptureIndex = -1; // this one has to load, even if it is what we last asked for
+      }
+      if (index >= 0)
+        _RequestCaptureLoadFromIndex(index);
+    }
+    return;
+  }
+
+  if (source == EParamSource::kUI)
+  {
+    // Some plugin formats deliver external parameter changes through IPlugAPIBase::SetParameterValue,
+    // which reports them as kUI on the main thread. The usual UI gesture arrives in
+    // OnParamChangeUI() instead; both land in the same place, and the "already loaded" check there
+    // makes a double call harmless.
+    _LoadCaptureFromParamOnUIThread();
+    return;
+  }
+
+  // Host automation / MIDI learn: the parameter wins. This may be the audio thread, so the load
+  // is handed to the capture worker.
+  _RequestCaptureLoadFromParam();
+}
+
+void NeuralAmpModeler::_CaptureWorkerLoop()
+{
+  for (;;)
+  {
+    int index = -1;
+    {
+      std::unique_lock<std::mutex> lock(mCaptureMutex);
+      mCaptureCv.wait(lock, [this] { return mCaptureWorkerShouldExit || mPendingCaptureIndex >= 0; });
+      if (mCaptureWorkerShouldExit)
+        return;
+      index = mPendingCaptureIndex;
+      mPendingCaptureIndex = -1;
+    }
+
+    // Reading the model and building the network happens here, never on the audio thread.
+    const std::string error = _LoadCaptureAtIndex(index, false);
+    if (!error.empty())
+    {
+      std::cerr << "Failed to load capture at index " << index << ":" << std::endl;
+      std::cerr << error << std::endl;
+    }
+
+    mCaptureUiNeedsRefresh = true;
+  }
+}
+
+void NeuralAmpModeler::_UpdateCaptureKnobUI(iplug::igraphics::IGraphics* pGraphics)
+{
+  if (pGraphics == nullptr)
+    return;
+
+  IControl* pControl = pGraphics->GetControlWithTag(kCtrlTagCaptureKnob);
+  NAMCaptureKnobControl* pKnob = pControl != nullptr ? pControl->As<NAMCaptureKnobControl>() : nullptr;
+  if (pKnob == nullptr)
+    return;
+
+  int count = 0;
+  int index = -1;
+  std::string path;
+  {
+    std::lock_guard<std::mutex> lock(mCaptureMutex);
+    count = static_cast<int>(mCaptureFiles.size());
+    index = mCaptureIndex;
+    if (index >= 0 && index < count)
+      path = mCaptureFiles[static_cast<size_t>(index)];
+  }
+
+  pKnob->SetCaptureState(count, index, path);
+}
+
+void NeuralAmpModeler::_SyncCaptureParamToIndex(bool notifyUI)
+{
+  int index = -1;
+  int count = 0;
+  {
+    std::lock_guard<std::mutex> lock(mCaptureMutex);
+    index = mCaptureIndex;
+    count = static_cast<int>(mCaptureFiles.size());
+  }
+
+  IParam* pParam = GetParam(kCaptureIndex);
+  if (pParam == nullptr)
+    return;
+
+  // Place the parameter at the position of the loaded capture within the folder.
+  const double normalized =
+    (index >= 0 && count > 1) ? static_cast<double>(index) / static_cast<double>(count - 1) : 0.0;
+  if (std::abs(pParam->GetNormalized() - normalized) < 1e-9)
+    return;
+
+  // Set the value directly: this must not trigger another capture load.
+  pParam->SetNormalized(normalized);
+
+  if (notifyUI)
+  {
+    SendParameterValueFromDelegate(kCaptureIndex, normalized, true);
+    if (auto* pGraphics = GetUI())
+      _UpdateCaptureKnobUI(pGraphics);
   }
 }
 

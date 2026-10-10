@@ -55,6 +55,11 @@ PLUGIN_NAME=`echo | grep BUNDLE_NAME config.h`
 PLUGIN_NAME=${PLUGIN_NAME//\#define BUNDLE_NAME }
 PLUGIN_NAME=${PLUGIN_NAME//\"}
 
+# The Xcode project and the icon keep the original project's names; PLUGIN_NAME (BUNDLE_NAME) is
+# what the built binaries and bundles are called.
+PROJECT_NAME=NeuralAmpModeler
+ICON_NAME=NeuralAmpModeler
+
 NOTARIZE_BUNDLE_ID=${NOTARIZE_BUNDLE_ID:-${INSTALLER_PKG_ID_PREFIX}.${PLUGIN_NAME}}
 NOTARIZE_BUNDLE_ID_DEMO=${NOTARIZE_BUNDLE_ID_DEMO:-${INSTALLER_PKG_ID_PREFIX}.${PLUGIN_NAME}.DEMO}
 
@@ -152,7 +157,7 @@ fi
 #---------------------------------------------------------------------------------------------------------
 # build xcode project. Change target to build individual formats, or add to All target in the xcode project
 
-xcodebuild -project ./projects/$PLUGIN_NAME-macOS.xcodeproj -xcconfig ./config/$PLUGIN_NAME-mac.xcconfig DEMO_VERSION=$DEMO -target "All" -UseModernBuildSystem=NO -configuration Release | tee build-mac.log | xcpretty #&& exit ${PIPESTATUS[0]}
+xcodebuild -project ./projects/$PROJECT_NAME-macOS.xcodeproj -xcconfig ./config/$PROJECT_NAME-mac.xcconfig DEMO_VERSION=$DEMO -target "All" -UseModernBuildSystem=NO -configuration Release | tee build-mac.log | xcpretty #&& exit ${PIPESTATUS[0]}
 
 if [ "${PIPESTATUS[0]}" -ne "0" ]; then
   echo "ERROR: build failed, aborting"
@@ -170,15 +175,15 @@ echo "setting icons"
 echo ""
 
 if [ -d $AU ]; then
-  ./$SCRIPTS/SetFileIcon -image resources/$PLUGIN_NAME.icns -file $AU
+  ./$SCRIPTS/SetFileIcon -image resources/$ICON_NAME.icns -file $AU
 fi
 
 if [ -d $VST3 ]; then
-  ./$SCRIPTS/SetFileIcon -image resources/$PLUGIN_NAME.icns -file $VST3
+  ./$SCRIPTS/SetFileIcon -image resources/$ICON_NAME.icns -file $VST3
 fi
 
 if [ -d "${AAX}" ]; then
-  ./$SCRIPTS/SetFileIcon -image resources/$PLUGIN_NAME.icns -file "${AAX}"
+  ./$SCRIPTS/SetFileIcon -image resources/$ICON_NAME.icns -file "${AAX}"
 fi
 
 #---------------------------------------------------------------------------------------------------------
@@ -255,7 +260,7 @@ if [ $BUILD_INSTALLER == 1 ]; then
   fi
 
   #set installer icon
-  ./$SCRIPTS/SetFileIcon -image resources/$PLUGIN_NAME.icns -file "${PKG}"
+  ./$SCRIPTS/SetFileIcon -image resources/$ICON_NAME.icns -file "${PKG}"
 
   #---------------------------------------------------------------------------------------------------------
   # make dmg, can use dmgcanvas http://www.araelium.com/dmgcanvas/ to make a nice dmg, fallback to hdiutil

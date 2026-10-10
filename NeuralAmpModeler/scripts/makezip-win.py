@@ -1,4 +1,4 @@
-import zipfile, os, fileinput, string, sys, shutil
+import zipfile, os, fileinput, string, sys, shutil, glob
 
 scriptpath = os.path.dirname(os.path.realpath(__file__))
 projectpath = os.path.abspath(os.path.join(scriptpath, os.pardir))
@@ -8,6 +8,15 @@ IPLUG2_ROOT = "..\..\iPlug2"
 sys.path.insert(0, os.path.join(scriptpath, IPLUG2_ROOT + "\Scripts"))
 
 from get_archive_name import get_archive_name
+
+
+def find_files(patterns):
+    """Collect build outputs by pattern so that renaming the plug-in does not break packaging."""
+    found = []
+    for pattern in patterns:
+        matches = [p for p in glob.glob(os.path.join(projectpath, pattern)) if os.path.isfile(p)]
+        found.extend(sorted(matches))
+    return found
 
 
 def main():
@@ -25,26 +34,30 @@ def main():
 
     os.makedirs(dir)
 
-    files = []
-
     if not zip:
-        installer = "\\build-win\\installer\\NeuralAmpModeler Installer.exe"
+        installer_pattern = (
+            "build-win\\installer\\*Demo Installer.exe" if demo else "build-win\\installer\\*Installer.exe"
+        )
+        files = find_files([installer_pattern])
+        if not demo:
+            files = [f for f in files if "Demo" not in os.path.basename(f)]
 
-        if demo:
-            installer = "\\build-win\\installer\\NeuralAmpModeler Demo Installer.exe"
-
-        files = [
-            projectpath + installer,
+        files += [
             projectpath + "\\installer\\changelog.txt",
             projectpath + "\\installer\\known-issues.txt",
-            projectpath + "\\manual\\NeuralAmpModeler manual.pdf",
         ]
+        files += find_files(["manual\\*manual.pdf"])
     else:
-        files = [
-            projectpath
-            + "\\build-win\\NeuralAmpModeler.vst3\\Contents\\x86_64-win\\NeuralAmpModeler.vst3",
-            projectpath + "\\build-win\\NeuralAmpModeler_x64.exe",
-        ]
+        files = find_files(
+            [
+                "build-win\\*.vst3\\Contents\\x86_64-win\\*.vst3",
+                "build-win\\*_x64.exe",
+            ]
+        )
+
+    if not files:
+        print("ERROR: no build outputs found to package")
+        sys.exit(1)
 
     zipname = get_archive_name(projectpath, "win", "demo" if demo == 1 else "full")
 
@@ -63,12 +76,9 @@ def main():
         projectpath + "\\build-win\\out\\" + zipname + "-pdbs.zip", mode="w"
     )
 
-    files = [
-        projectpath + "\\build-win\\pdbs\\NeuralAmpModeler-vst3_x64.pdb",
-        projectpath + "\\build-win\\pdbs\\NeuralAmpModeler-app_x64.pdb",
-    ]
+    pdbs = find_files(["build-win\\pdbs\\*.pdb"])
 
-    for f in files:
+    for f in pdbs:
         print("adding " + f)
         zf.write(f, os.path.basename(f), zipfile.ZIP_DEFLATED)
 

@@ -1,18 +1,18 @@
-#define PLUG_NAME "NeuralAmpModeler"
+#define PLUG_NAME "NeuralAmpModeler Capture"
 #define PLUG_MFR "Steven Atkinson"
-#define PLUG_VERSION_HEX 0x00000800
-#define PLUG_VERSION_STR "0.8.0"
-#define PLUG_UNIQUE_ID '1YEo'
+#define PLUG_VERSION_HEX 0x00000804
+#define PLUG_VERSION_STR "0.8.4"
+#define PLUG_UNIQUE_ID 'NCap'
 #define PLUG_MFR_ID 'SDAa'
 #define PLUG_URL_STR "https://github.com/sdatkinson/NeuralAmpModelerPlugin"
 #define PLUG_EMAIL_STR "spam@me.com"
 #define PLUG_COPYRIGHT_STR "Copyright 2022 Steven Atkinson"
 #define PLUG_CLASS_NAME NeuralAmpModeler
-#define BUNDLE_NAME "NeuralAmpModeler"
+#define BUNDLE_NAME "NeuralAmpModelerCapture"
 #define BUNDLE_MFR "StevenAtkinson"
 #define BUNDLE_DOMAIN "com"
 
-#define SHARED_RESOURCES_SUBPATH "NeuralAmpModeler"
+#define SHARED_RESOURCES_SUBPATH "NeuralAmpModelerCapture"
 
 #ifdef APP_API
   #define PLUG_CHANNEL_IO "1-2"
@@ -35,16 +35,16 @@
 #define PLUG_MAX_WIDTH PLUG_WIDTH * 4
 #define PLUG_MAX_HEIGHT PLUG_HEIGHT * 4
 
-#define AUV2_ENTRY NeuralAmpModeler_Entry
-#define AUV2_ENTRY_STR "NeuralAmpModeler_Entry"
-#define AUV2_FACTORY NeuralAmpModeler_Factory
-#define AUV2_VIEW_CLASS NeuralAmpModeler_View
-#define AUV2_VIEW_CLASS_STR "NeuralAmpModeler_View"
+#define AUV2_ENTRY NeuralAmpModelerCapture_Entry
+#define AUV2_ENTRY_STR "NeuralAmpModelerCapture_Entry"
+#define AUV2_FACTORY NeuralAmpModelerCapture_Factory
+#define AUV2_VIEW_CLASS NeuralAmpModelerCapture_View
+#define AUV2_VIEW_CLASS_STR "NeuralAmpModelerCapture_View"
 
-#define AAX_TYPE_IDS 'ITP1'
-#define AAX_TYPE_IDS_AUDIOSUITE 'ITA1'
+#define AAX_TYPE_IDS 'NCp1'
+#define AAX_TYPE_IDS_AUDIOSUITE 'NCpA'
 #define AAX_PLUG_MFR_STR "Acme"
-#define AAX_PLUG_NAME_STR "NeuralAmpModeler\nIPEF"
+#define AAX_PLUG_NAME_STR "NeuralAmpModeler Capture\nNCAP"
 #define AAX_PLUG_CATEGORY_STR "Effect"
 #define AAX_DOES_AUDIOSUITE 1
 
